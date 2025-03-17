@@ -68,7 +68,30 @@ fn install_rustup(session: &Session) -> io::Result<()> {
     println!("Detected OS: {}", session.os);
 
     match session.os.as_str() {
-        "linux" | "macos" => {
+        "linux" => {
+            //update apt
+            println!("running sudo apt update...");
+            let status = Command::new("sudo")
+                .args(["apt", "update"])
+                .status()?;
+            if !status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Failed to apt update",
+                ));
+            }
+            //install curl
+            println!("installing curl...");
+            let status = Command::new("sudo")
+                .args(["apt", "install", "curl", "-y"])
+                .status()?;
+            if !status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Failed to install curl",
+                ));
+            }
+
             println!("Downloading and installing rustup...");
             let status = Command::new("sh")
                 .arg("-c")
@@ -91,14 +114,28 @@ fn install_rustup(session: &Session) -> io::Result<()> {
             let current_path = env::var("PATH").unwrap_or_default();
             env::set_var("PATH", format!("{}/.cargo/bin:{}", home, current_path));
         }
-        "windows" => {
-            println!("Please download and run the rustup installer from https://rustup.rs/");
-            println!("Alternatively, run this in PowerShell:");
-            println!("Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; ./rustup-init.exe -y");
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Manual installation required on Windows",
-            ));
+        "macos" => {
+            println!("Downloading and installing rustup...");
+            let status = Command::new("sh")
+                .arg("-c")
+                .arg("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y")
+                .status()?;
+
+            if !status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Failed to install rustup",
+                ));
+            }
+            // Update PATH for the current session
+            let home = env::var("HOME").map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Failed to get HOME environment variable: {}", e),
+                )
+            })?;
+            let current_path = env::var("PATH").unwrap_or_default();
+            env::set_var("PATH", format!("{}/.cargo/bin:{}", home, current_path));
         }
         _ => {
             return Err(io::Error::new(
@@ -214,20 +251,59 @@ fn main() -> io::Result<()> {
     //TODOS
 
     //Install android SDK & NDK
+
     //install_android_tools
+
+    //install homebrew if mac (need to test thoroughly)
+    ///bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    
+    //install xcode if mac
+    //ruby -v
+    //if ruby not installed
+    //brew install ruby
+    //gem install xcode-install
+
+    //update xcode if xcode-install available
+    //xcversion install --latest
+
     //install xcode tools if mac
+    //sudo rm -rf /Library/Developer/CommandLineTools
+    //sudo xcode-select --install
+    //softwareupdate --install --all
+
+    //accept xcode license
+    //sudo xcodebuild -license accept
+
+    //install the needed linkers if macos
+    //brew tap messense/macos-cross-toolchains
+    //brew install x86_64-unknown-linux-gnu
+
+    //add linux linker to .cargo/config.toml if macos
+    //     cat << 'EOF' > .cargo/config.toml
+    // [target.x86_64-unknown-linux-gnu]
+    // linker = "x86_64-unknown-linux-gnu-gcc"
+    // EOF
+
     //install all other dependencies needed based on OS (might require homebrew first for macos)
 
 
     //set projects path & save custom path with a conf
+
     //check project for a .ramp
+
     //create a new template from github template ramp_template
+
     //load and existing project
 
     //set up key signers for android & ios based on OS
+
     //Single Icon depository with global configuration
+
     //BUILD for target environments
+
     //BUILD for simulators
 
     Ok(())
 }
+
+
