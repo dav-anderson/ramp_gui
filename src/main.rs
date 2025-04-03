@@ -1,6 +1,7 @@
 use std::process::{Command, Stdio};
 use std::io::{self, Write};
 use std::env;
+use std::path::Path;
 
 
 struct Session {
@@ -15,32 +16,6 @@ impl Session {
             projects_path: None,
         }
     }
-}
-
-fn startup(session: &Session) -> io::Result<()> {
-    println!("Checking for Rust toolchain...");
-    // Check if rustup is installed
-    if !is_command_available("rustup") {
-        println!("rustup not found. Attempting to install Rust toolchain...");
-        install_rustup(&session)?;
-    } else {
-        println!("rustup is installed.");
-    }
-
-    // Check if cargo is installed
-    if !is_command_available("cargo") {
-        println!("cargo not found. Running rustup to ensure full toolchain...");
-        install_rust_toolchain()?;
-    } else {
-        println!("cargo is installed.");
-    }
-
-    println!("Rust toolchain is ready!");
-
-    //Install OS appropriate build targets
-    install_build_targets(&session)?;
-
-    Ok(())
 }
 
 // Function to check if a command is available in the system
@@ -241,6 +216,142 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
         }
     }
     println!("Build targets installed!");
+    Ok(())
+}
+
+fn install_android_sdk_and_ndk(session: &Session) -> io::Result<()> {
+    println!("Setting up Android SDK and NDK for {}", session.os);
+
+    let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
+    let sdk_root = format!("{}/Android/sdk", home);
+    let cmdline_tools_dir = format!("{}/cmdline-tools", sdk_root);
+    let desired_ndk_version = "26.1.10909125";
+
+    // Check for existing SDK
+    let mut sdkmanager_path = None;
+    let possible_sdk_locations = vec![
+        env::var("ANDROID_HOME").ok(),
+        env::var("ANDROID_SDK_ROOT").ok(),
+        Some(sdk_root.clone()),
+    ];
+    for location in possible_sdk_locations.into_iter().flatten() {
+        let candidate = format!("{}/cmdline-tools/latest/bin/sdkmanager", location);
+        if Path::new(&candidate).exists() {
+            let status = Command::new(&candidate)
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()?;
+            if status.success() {
+                sdkmanager_path = Some(candidate);
+                println!("Found existing Android SDK at {}", location);
+                break;
+            }
+        }
+    }
+
+    // Install SDK if not found
+    if sdkmanager_path.is_none() {
+        println!("Android SDK not found. Installing command-line tools...");
+        match session.os.as_str() {
+            "linux" | "macos" => {
+                let sdk_url = "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip";
+                let download_path = format!("{}/cmdline-tools.zip", home);
+                Command::new("curl")
+                    .args(&["-o", &download_path, sdk_url])
+                    .status()?;
+                Command::new("mkdir")
+                    .args(&["-p", &sdk_root])
+                    .status()?;
+                Command::new("unzip")
+                    .args(&["-o", &download_path, "-d", &sdk_root])
+                    .status()?;
+                Command::new("mv")
+                    .args(&[format!("{}/cmdline-tools", sdk_root), cmdline_tools_dir.clone()])
+                    .status()?;
+                Command::new("rm")
+                    .arg(&download_path)
+                    .status()?;
+                sdkmanager_path = Some(format!("{}/latest/bin/sdkmanager", cmdline_tools_dir));
+            }
+            _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for Android SDK installation")),
+        }
+        println!("Android command-line tools installed.");
+    }
+
+    let sdkmanager = sdkmanager_path.unwrap();
+
+    // Check for NDK
+    let ndk_path = format!("{}/ndk/{}", sdk_root, desired_ndk_version);
+    let ndk_installed = Path::new(&ndk_path).exists() || Path::new(&format!("{}/ndk-bundle", sdk_root)).exists();
+
+    // Accept licenses and install packages if needed
+    if !ndk_installed {
+        println!("Accepting Android SDK licenses...");
+        let status = Command::new(&sdkmanager)
+            .args(&["--licenses", "--no-ui"])
+            .status()?;
+        if !status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to accept Android SDK licenses"));
+        }
+        let ndk_package = format!("ndk;{}", desired_ndk_version);
+        let packages = if !ndk_installed {
+            vec!["platform-tools", "build-tools;34.0.0", &ndk_package]
+        } else {
+            vec![]
+        };
+
+        for package in packages {
+            println!("Installing {}...", package);
+            let status = Command::new(&sdkmanager)
+                .args(&[package])
+                .status()?;
+            if !status.success() {
+                return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to install {}", package)));
+            }
+        }
+    } else {
+        println!("Android NDK version {} already installed at {}", desired_ndk_version, ndk_path);
+    }
+
+    // Update PATH
+    let current_path = env::var("PATH").unwrap_or_default();
+    let new_path = format!(
+        "{}:{}/platform-tools:{}/ndk/{}",
+        current_path, sdk_root, sdk_root, desired_ndk_version
+    );
+    env::set_var("PATH", &new_path);
+    println!("PATH updated:\n{}", new_path);
+
+    Ok(())
+}
+
+
+fn startup(session: &Session) -> io::Result<()> {
+    println!("Checking for Rust toolchain...");
+    // Check if rustup is installed
+    if !is_command_available("rustup") {
+        println!("rustup not found. Attempting to install Rust toolchain...");
+        install_rustup(&session)?;
+    } else {
+        println!("rustup is installed.");
+    }
+
+    // Check if cargo is installed
+    if !is_command_available("cargo") {
+        println!("cargo not found. Running rustup to ensure full toolchain...");
+        install_rust_toolchain()?;
+    } else {
+        println!("cargo is installed.");
+    }
+
+    println!("Rust toolchain is ready!");
+
+    //Install OS appropriate build targets
+    install_build_targets(&session)?;
+
+    install_android_sdk_and_ndk(&session)?;
+
     Ok(())
 }
 
