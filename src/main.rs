@@ -44,29 +44,59 @@ fn install_rustup(session: &Session) -> io::Result<()> {
 
     match session.os.as_str() {
         "linux" => {
-            //update apt
-            println!("running sudo apt update...");
-            let status = Command::new("sudo")
-                .args(["apt", "update"])
-                .status()?;
-            if !status.success() {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Failed to apt update",
-                ));
+            let mut attempts = 0;
+            let max_attempts = 3;
+            let mut success = false;
+            while attempts < max_attempts && success == false{
+                let mut apt_success = false;
+                let mut curl_success = false;
+                let mut unzip_success = false;
+                attempts += 1;
+                //update apt
+                println!("running sudo apt update... attempt:{}", attempts.to_string());
+                let apt_output = Command::new("sudo")
+                    .args(["apt", "update"])
+                    .output()?;
+                println!("apt update stdout: {}", String::from_utf8_lossy(&apt_output.stdout));
+                if !apt_output.status.success() {
+                    println!("apt update stderr: {}", String::from_utf8_lossy(&apt_output.stderr));
+                    success = false;
+                }else{
+                    println!("apt success");
+                    apt_success = true;
+                }
+                //install curl
+                println!("installing curl...");
+                let curl_output = Command::new("sudo")
+                    .args(["apt", "install", "curl", "-y"])
+                    .output()?;
+                if !curl_output.status.success() {
+                    println!("failed to install curl, stderr: {}", String::from_utf8_lossy(&curl_output.stderr));
+                    success = false;
+                }else{
+                    println!("curl success");
+                    curl_success = true;
+                }
+                //install unzip
+                println!("installing unzip...");
+                let unzip_output = Command::new("sudo")
+                    .args(["apt", "install", "unzip", "-y"])
+                    .output()?;
+                if !unzip_output.status.success() {
+                    println!("failed to install unzip, stderr: {}", String::from_utf8_lossy(&unzip_output.stderr));
+                    success = false;
+                }else{
+                    println!("unzip success");
+                    unzip_success = true;
+                }
+                if unzip_success == true && curl_success == true && apt_success == true{
+                    success = true;
+                    println!("********apt loop success******")
+                }else{
+                    success = false;
+                }
             }
-            //install curl
-            println!("installing curl...");
-            let status = Command::new("sudo")
-                .args(["apt", "install", "curl", "-y"])
-                .status()?;
-            if !status.success() {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Failed to install curl",
-                ));
-            }
-
+   
             println!("Downloading and installing rustup...");
             let status = Command::new("sh")
                 .arg("-c")
@@ -360,6 +390,8 @@ fn main() -> io::Result<()> {
     println!("Starting a new session on OS: {}", session.os);
     startup(&session);
     //TODOS
+
+    //add an internet connectivitiy check to startup
 
     //Install android SDK & NDK
 
