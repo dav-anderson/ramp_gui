@@ -96,6 +96,9 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                     success = false;
                 }
             }
+            if success == false{
+                return Err(io::Error::new(io::ErrorKind::Other, "Failed to apt update & install curl and unzip"));
+            }
    
             println!("Downloading and installing rustup...");
             let status = Command::new("sh")
@@ -358,6 +361,13 @@ fn install_android_sdk_and_ndk(session: &Session) -> io::Result<()> {
 
 
 fn startup(session: &Session) -> io::Result<()> {
+    //check network connectivity
+    println!("Checking for network connectivity...");
+    //ping linux servers once to check for connectivity
+	let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
+	if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
+	}
     println!("Checking for Rust toolchain...");
     // Check if rustup is installed
     if !is_command_available("rustup") {
@@ -380,20 +390,12 @@ fn startup(session: &Session) -> io::Result<()> {
     //Install OS appropriate build targets
     install_build_targets(&session)?;
 
-    install_android_sdk_and_ndk(&session)?;
+    //TODO this is broken
+    // install_android_sdk_and_ndk(&session)?;
 
-    Ok(())
-}
+    //TODO install everything for macos
 
-fn main() -> io::Result<()> {
-    let session = Session::new();
-    println!("Starting a new session on OS: {}", session.os);
-    startup(&session);
-    //TODOS
-
-    //add an internet connectivitiy check to startup
-
-    //Install android SDK & NDK
+    //Install android SDK & NDK & verify it works (TODO THIS CURRENTLY RUNS EVERYTIME NEED TO FIX)
 
     //install_android_tools
 
@@ -429,12 +431,99 @@ fn main() -> io::Result<()> {
 
     //install all other dependencies needed based on OS (might require homebrew first for macos)
 
+    Ok(())
+}
+
+fn new_project(session: &Session, name: &str) -> io::Result<()> {
+    //TODO uncomment this once it is removed from main() and part of the gui
+    // //check network connectivity
+    // println!("Checking for network connectivity...")
+    // //ping linux servers once to check for connectivity
+    // let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
+    // if !output.status.success() {
+    //     return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
+    // }
+
+    println!("creating new project named: {}", name);
+    match session.os.as_str() {
+        "linux" => {
+            // Get the user's home directory
+            let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
+            let template_dir = format!("{}/ramp/.template", home);
+
+            // Ensure git is installed
+            if !is_command_available("git") {
+                let mut success = false;
+                let mut attempt = 0;
+                let max_attempts = 3;
+                while success == false && attempt < max_attempts{
+                    attempt += 1;
+                    println!("git not found. Installing git...");
+                    let git_output = Command::new("sudo")
+                        .args(&["bash", "-c", "apt install -y git"])
+                        .output()?;
+                    println!("git install stdout: {}", String::from_utf8_lossy(&git_output.stdout));
+                    if !git_output.status.success() {
+                        println!("git install stderr: {}", String::from_utf8_lossy(&git_output.stderr));
+                    }else{
+                        success = true;
+                    }
+                }
+                if success == false{
+                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to install git"));
+                }
+                
+            }
+
+            // Create the parent directory if it doesn't exist
+            let projs_dir = format!("{}/ramp/{}", home, name);
+            if !Path::new(&projs_dir).exists() {
+                println!("Creating directory: {}", projs_dir);
+                let mkdir_output = Command::new("mkdir")
+                    .args(&["-p", &projs_dir])
+                    .output()?;
+                if !mkdir_output.status.success() {
+                    println!("mkdir stderr: {}", String::from_utf8_lossy(&mkdir_output.stderr));
+                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to create projs directory"));
+                }
+            }
+
+            // Clone the template repository
+            println!("Cloning template from https://github.com/dav-anderson/ramp_template to {}", projs_dir);
+            let clone_output = Command::new("git")
+                .args(&["clone", "https://github.com/dav-anderson/ramp_template", &projs_dir])
+                .output()?;
+            println!("git clone stdout: {}", String::from_utf8_lossy(&clone_output.stdout));
+            if !clone_output.status.success() {
+                println!("git clone stderr: {}", String::from_utf8_lossy(&clone_output.stderr));
+                return Err(io::Error::new(io::ErrorKind::Other, "Failed to clone template repository"));
+            }
+
+            println!("Template cloned successfully to {}", projs_dir);
+        }
+        _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for cloning template")),
+    }
+    Ok(())
+}
+
+fn main() -> io::Result<()> {
+    let session = Session::new();
+    println!("Starting a new session on OS: {}", session.os);
+    startup(&session);
+
+    //create new proj
+    let name: &str = "testproj";
+    new_project(&session, &name)?;
+
+    //TODOS
 
     //set projects path & save custom path with a conf
 
     //check project for a .ramp
 
     //create a new template from github template ramp_template
+
+    //template version tracking
 
     //load and existing project
 
