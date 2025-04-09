@@ -7,14 +7,31 @@ use std::path::Path;
 struct Session {
     os: String,
     projects_path: Option<String>,
+    current_project: Option<String>
 }
 
 impl Session {
-    fn new() -> Self {
-        Session {
-            os: env::consts::OS.to_string(),
-            projects_path: None,
-        }
+    fn new() -> io::Result<Self> {
+        let os = env::consts::OS.to_string();
+        let projects_path = match os.as_str() {
+            "linux" => {
+                let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
+                Some(format!("{}/ramp", home))
+            }
+            //TODO MACOS here
+            "macos" => None, 
+            //unsupported OS
+            _ => None,
+        };
+        Ok(Session {
+            os,
+            projects_path,
+            current_project: None,
+        })
+    }
+
+    fn update_current_project(&mut self, name: String) {
+        self.current_project = Some(format!("{}/{}", self.projects_path.as_ref().unwrap_or(&String::new()), name));
     }
 }
 
@@ -60,7 +77,6 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                 println!("apt update stdout: {}", String::from_utf8_lossy(&apt_output.stdout));
                 if !apt_output.status.success() {
                     println!("apt update stderr: {}", String::from_utf8_lossy(&apt_output.stderr));
-                    success = false;
                 }else{
                     println!("apt success");
                     apt_success = true;
@@ -72,7 +88,6 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                     .output()?;
                 if !curl_output.status.success() {
                     println!("failed to install curl, stderr: {}", String::from_utf8_lossy(&curl_output.stderr));
-                    success = false;
                 }else{
                     println!("curl success");
                     curl_success = true;
@@ -84,7 +99,6 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                     .output()?;
                 if !unzip_output.status.success() {
                     println!("failed to install unzip, stderr: {}", String::from_utf8_lossy(&unzip_output.stderr));
-                    success = false;
                 }else{
                     println!("unzip success");
                     unzip_success = true;
@@ -92,8 +106,6 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                 if unzip_success == true && curl_success == true && apt_success == true{
                     success = true;
                     println!("********apt loop success******")
-                }else{
-                    success = false;
                 }
             }
             if success == false{
@@ -434,7 +446,7 @@ fn startup(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
-fn new_project(session: &Session, name: &str) -> io::Result<()> {
+fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     //TODO uncomment this once it is removed from main() and part of the gui
     // //check network connectivity
     // println!("Checking for network connectivity...")
@@ -443,14 +455,14 @@ fn new_project(session: &Session, name: &str) -> io::Result<()> {
     // if !output.status.success() {
     //     return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
     // }
-
+    session.update_current_project(name.to_string());
     println!("creating new project named: {}", name);
+    let projs_dir = match &session.current_project{
+        Some(path) => path,
+        None => return Err(io::Error::new(io::ErrorKind::Other, "no project path found")),
+    };
     match session.os.as_str() {
         "linux" => {
-            // Get the user's home directory
-            let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
-            let template_dir = format!("{}/ramp/.template", home);
-
             // Ensure git is installed
             if !is_command_available("git") {
                 let mut success = false;
@@ -476,11 +488,10 @@ fn new_project(session: &Session, name: &str) -> io::Result<()> {
             }
 
             // Create the parent directory if it doesn't exist
-            let projs_dir = format!("{}/ramp/{}", home, name);
-            if !Path::new(&projs_dir).exists() {
+            if !Path::new(projs_dir).exists() {
                 println!("Creating directory: {}", projs_dir);
                 let mkdir_output = Command::new("mkdir")
-                    .args(&["-p", &projs_dir])
+                    .args(&["-p", projs_dir])
                     .output()?;
                 if !mkdir_output.status.success() {
                     println!("mkdir stderr: {}", String::from_utf8_lossy(&mkdir_output.stderr));
@@ -491,7 +502,7 @@ fn new_project(session: &Session, name: &str) -> io::Result<()> {
             // Clone the template repository
             println!("Cloning template from https://github.com/dav-anderson/ramp_template to {}", projs_dir);
             let clone_output = Command::new("git")
-                .args(&["clone", "https://github.com/dav-anderson/ramp_template", &projs_dir])
+                .args(&["clone", "https://github.com/dav-anderson/ramp_template", projs_dir])
                 .output()?;
             println!("git clone stdout: {}", String::from_utf8_lossy(&clone_output.stdout));
             if !clone_output.status.success() {
@@ -503,17 +514,18 @@ fn new_project(session: &Session, name: &str) -> io::Result<()> {
         }
         _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for cloning template")),
     }
+
     Ok(())
 }
 
 fn main() -> io::Result<()> {
-    let session = Session::new();
+    let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
     startup(&session);
 
     //create new proj
     let name: &str = "testproj";
-    new_project(&session, &name)?;
+    new_project(&mut session, &name)?;
 
     //TODOS
 
