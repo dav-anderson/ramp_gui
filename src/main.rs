@@ -266,108 +266,79 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
 
 fn install_android_sdk_and_ndk(session: &Session) -> io::Result<()> {
     println!("Setting up Android SDK and NDK for {}", session.os);
-
     let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
     let sdk_root = format!("{}/Android/sdk", home);
     let cmdline_tools_dir = format!("{}/cmdline-tools", sdk_root);
     let desired_ndk_version = "26.1.10909125";
 
-    // Check for existing SDK
-    let mut sdkmanager_path = None;
-    let possible_sdk_locations = vec![
-        env::var("ANDROID_HOME").ok(),
-        env::var("ANDROID_SDK_ROOT").ok(),
-        Some(sdk_root.clone()),
-    ];
-    for location in possible_sdk_locations.into_iter().flatten() {
-        let candidate = format!("{}/cmdline-tools/latest/bin/sdkmanager", location);
-        if Path::new(&candidate).exists() {
-            let status = Command::new(&candidate)
-                .arg("--version")
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()?;
-            if status.success() {
-                sdkmanager_path = Some(candidate);
-                println!("Found existing Android SDK at {}", location);
-                break;
-            }
-        }
-    }
-
-    // Install SDK if not found
-    if sdkmanager_path.is_none() {
-        println!("Android SDK not found. Installing command-line tools...");
-        match session.os.as_str() {
-            "linux" | "macos" => {
-                let sdk_url = "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip";
-                let download_path = format!("{}/cmdline-tools.zip", home);
-                Command::new("curl")
-                    .args(&["-o", &download_path, sdk_url])
-                    .status()?;
-                Command::new("mkdir")
-                    .args(&["-p", &sdk_root])
-                    .status()?;
-                Command::new("unzip")
-                    .args(&["-o", &download_path, "-d", &sdk_root])
-                    .status()?;
-                Command::new("mv")
-                    .args(&[format!("{}/cmdline-tools", sdk_root), cmdline_tools_dir.clone()])
-                    .status()?;
+    match session.os.as_str() {
+        "linux" => {
+            // Remove any existing SDK directory (optional, ensures fresh install)
+            if Path::new(&sdk_root).exists() {
+                println!("Removing existing SDK directory: {}", sdk_root);
                 Command::new("rm")
-                    .arg(&download_path)
+                    .args(&["-rf", &sdk_root])
                     .status()?;
-                sdkmanager_path = Some(format!("{}/latest/bin/sdkmanager", cmdline_tools_dir));
             }
-            _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for Android SDK installation")),
-        }
-        println!("Android command-line tools installed.");
-    }
 
-    let sdkmanager = sdkmanager_path.unwrap();
-
-    // Check for NDK
-    let ndk_path = format!("{}/ndk/{}", sdk_root, desired_ndk_version);
-    let ndk_installed = Path::new(&ndk_path).exists() || Path::new(&format!("{}/ndk-bundle", sdk_root)).exists();
-
-    // Accept licenses and install packages if needed
-    if !ndk_installed {
-        println!("Accepting Android SDK licenses...");
-        let status = Command::new(&sdkmanager)
-            .args(&["--licenses", "--no-ui"])
-            .status()?;
-        if !status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to accept Android SDK licenses"));
-        }
-        let ndk_package = format!("ndk;{}", desired_ndk_version);
-        let packages = if !ndk_installed {
-            vec!["platform-tools", "build-tools;34.0.0", &ndk_package]
-        } else {
-            vec![]
-        };
-
-        for package in packages {
-            println!("Installing {}...", package);
-            let status = Command::new(&sdkmanager)
-                .args(&[package])
+            // Download and install command-line tools
+            println!("Installing Android command-line tools...");
+            let sdk_url = "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip";
+            let download_path = format!("{}/cmdline-tools.zip", home);
+            Command::new("curl")
+                .args(&["-o", &download_path, sdk_url])
                 .status()?;
-            if !status.success() {
-                return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to install {}", package)));
+            Command::new("mkdir")
+                .args(&["-p", &sdk_root])
+                .status()?;
+            Command::new("unzip")
+                .args(&["-o", &download_path, "-d", &sdk_root])
+                .status()?;
+            Command::new("mv")
+                .args(&[format!("{}/cmdline-tools", sdk_root), cmdline_tools_dir.clone()])
+                .status()?;
+            Command::new("rm")
+                .arg(&download_path)
+                .status()?;
+
+            // Set up sdkmanager path
+            let sdkmanager = format!("{}/latest/bin/sdkmanager", cmdline_tools_dir);
+
+            // Accept licenses
+            println!("Accepting Android SDK licenses...");
+            let license_output = Command::new(&sdkmanager)
+                .args(&["--licenses", "--no-ui"])
+                .output()?;
+            if !license_output.status.success() {
+                println!("License acceptance stderr: {}", String::from_utf8_lossy(&license_output.stderr));
+                return Err(io::Error::new(io::ErrorKind::Other, "Failed to accept Android SDK licenses"));
             }
+
+            // Install SDK and NDK packages
+            let ndk_package = format!("ndk;{}", desired_ndk_version);
+            let packages = vec!["platform-tools", "build-tools;34.0.0", &ndk_package];
+            for package in packages {
+                println!("Installing {}...", package);
+                let install_output = Command::new(&sdkmanager)
+                    .args(&[package])
+                    .output()?;
+                if !install_output.status.success() {
+                    println!("Install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
+                    return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to install {}", package)));
+                }
+            }
+
+            // Update PATH
+            let current_path = env::var("PATH").unwrap_or_default();
+            let new_path = format!(
+                "{}:{}/platform-tools:{}/ndk/{}",
+                current_path, sdk_root, sdk_root, desired_ndk_version
+            );
+            env::set_var("PATH", &new_path);
+            println!("Android SDK and NDK installed, PATH updated:\n{}", new_path);
         }
-    } else {
-        println!("Android NDK version {} already installed at {}", desired_ndk_version, ndk_path);
+        _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for Android SDK/NDK installation")),
     }
-
-    // Update PATH
-    let current_path = env::var("PATH").unwrap_or_default();
-    let new_path = format!(
-        "{}:{}/platform-tools:{}/ndk/{}",
-        current_path, sdk_root, sdk_root, desired_ndk_version
-    );
-    env::set_var("PATH", &new_path);
-    println!("PATH updated:\n{}", new_path);
-
     Ok(())
 }
 
@@ -521,7 +492,7 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
 fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
-    startup(&session);
+    // startup(&session);
 
     //create new proj
     let name: &str = "testproj";
