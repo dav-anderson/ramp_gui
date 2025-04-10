@@ -430,14 +430,14 @@ fn startup(session: &Session) -> io::Result<()> {
 }
 
 fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
-    //TODO uncomment this once it is removed from main() and part of the gui
-    // //check network connectivity
-    // println!("Checking for network connectivity...")
-    // //ping linux servers once to check for connectivity
-    // let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
-    // if !output.status.success() {
-    //     return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
-    // }
+    //check network connectivity
+    println!("Checking for network connectivity...");
+    //ping linux servers once to check for connectivity
+    let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
+    }
+    //prepare the template at the target path
     let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name);
     match session.os.as_str() {
         "linux" => {
@@ -493,11 +493,14 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
         _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for cloning template")),
     }
 
-    session.update_current_project(name.to_string())?;
+    //TODO rename everything inside of the template appropriately
 
+    //update the current loaded project to the new project
+    load_project(session, &name)?;
 
     Ok(())
 }
+
 
 fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
     println!("loading project...");
@@ -520,6 +523,8 @@ fn main() -> io::Result<()> {
     println!("current project: {:?}", session.current_project);
 
     //TODOS
+
+    //new project must rename everything in the repo appropriately
 
     //Single Icon depository with global configuration
 
