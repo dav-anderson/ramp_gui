@@ -2,6 +2,8 @@ use std::process::{Command, Stdio};
 use std::io::{self, Write};
 use std::env;
 use std::path::Path;
+use std::fs;
+
 
 
 struct Session {
@@ -353,6 +355,166 @@ fn install_android_sdk_and_ndk(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
+fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
+    //check network connectivity
+    println!("Checking for network connectivity...");
+    //ping linux servers once to check for connectivity
+    let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
+    }
+    //prepare the template at the target path
+    let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name.to_lowercase());
+    match session.os.as_str() {
+        "linux" => {
+            // Ensure git is installed
+            if !is_command_available("git") {
+                let mut success = false;
+                let mut attempt = 0;
+                let max_attempts = 3;
+                while success == false && attempt < max_attempts{
+                    attempt += 1;
+                    println!("git not found. Installing git...");
+                    let git_output = Command::new("sudo")
+                        .args(&["bash", "-c", "apt install -y git"])
+                        .output()?;
+                    println!("git install stdout: {}", String::from_utf8_lossy(&git_output.stdout));
+                    if !git_output.status.success() {
+                        println!("git install stderr: {}", String::from_utf8_lossy(&git_output.stderr));
+                    }else{
+                        success = true;
+                    }
+                }
+                if success == false{
+                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to install git"));
+                }
+                
+            }
+
+            // Create the parent directory if it doesn't exist
+            if !Path::new(&new_path).exists() {
+                println!("Creating directory: {}", &new_path);
+                let mkdir_output = Command::new("mkdir")
+                    .args(&["-p", &new_path])
+                    .output()?;
+                if !mkdir_output.status.success() {
+                    println!("mkdir stderr: {}", String::from_utf8_lossy(&mkdir_output.stderr));
+                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to create projs directory"));
+                }
+            }
+
+            // Clone the template repository
+            println!("Cloning template from https://github.com/dav-anderson/ramp_template to {}", &new_path);
+            let clone_output = Command::new("git")
+                .args(&["clone", "https://github.com/dav-anderson/ramp_template", &new_path])
+                .output()?;
+            println!("git clone stdout: {}", String::from_utf8_lossy(&clone_output.stdout));
+            if !clone_output.status.success() {
+                println!("git clone stderr: {}", String::from_utf8_lossy(&clone_output.stderr));
+                return Err(io::Error::new(io::ErrorKind::Other, "Failed to clone template repository"));
+            }
+
+            println!("Template cloned successfully to {}", &new_path);
+        }
+        _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for cloning template")),
+    }
+
+    //rename everything inside of the template with the project name
+    template_naming(session, &name.to_lowercase())?;
+
+    //update the current loaded project to the new project
+    load_project(session, &name.to_lowercase())?;
+
+    Ok(())
+}
+
+
+fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
+    println!("loading project...");
+    session.update_current_project(name.to_string())?;
+    Ok(())
+}
+
+fn template_naming(session: &mut Session, name: &str) -> io::Result<()> {
+    let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name);
+    let capitalized_name = capitalize_first(name);
+    //rename dir ios/Webgpu.app
+    rename_directory(&format!("{}/ios/Webgpu.app", new_path), &format!("{}.app", &capitalized_name))?;
+    //rename ios/Webgpu.app/Info.plist
+    let replacements = vec![
+        ("Webgpu", capitalized_name.as_str()),
+        ("webgpu", name)
+    ];
+    replace_strings_in_file(&format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name), &replacements)?;
+    //rename dir macos/Webgpu.app
+    rename_directory(&format!("{}/macos/Webgpu.app", new_path), &format!("{}.app", &capitalized_name))?;
+    //rename macos/Webgpu.app/Contents/Info.plist 
+    replace_strings_in_file(&format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name), &replacements)?;
+    //rename Cargo.toml internals
+    let replacements = vec![
+        ("webgpu", name),
+        ("ramp_template", name)
+    ];
+    replace_strings_in_file(&format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name), &replacements)?;
+
+    Ok(())
+}
+
+fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
+    // Get the parent directory of the current path
+    let current_dir = Path::new(current_path);
+    let parent_dir = current_dir.parent().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Current path has no parent directory")
+    })?;
+
+    // Construct the new path by joining the parent directory with the target name
+    let new_path = parent_dir.join(target_name);
+
+    // Rename the directory
+    fs::rename(current_path, &new_path).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to rename {} to {}: {}", current_path, new_path.display(), e),
+        )
+    })?;
+
+    println!("Renamed directory from {} to {}", current_path, new_path.display());
+    Ok(())
+}
+
+fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) -> io::Result<()> {
+    // Read the file content into a string
+    let content = fs::read_to_string(file_path).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to read file {}: {}", file_path, e),
+        )
+    })?;
+
+    // Perform all replacements
+    let mut new_content = content;
+    for &(find, replace) in replacements {
+        new_content = new_content.replace(find, replace);
+    }
+
+    // Write the modified content back to the file
+    fs::write(file_path, &new_content).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to write to file {}: {}", file_path, e),
+        )
+    })?;
+
+    println!("Updated file {} with replacements", file_path);
+    Ok(())
+}
+
+fn capitalize_first(s: &str) -> String {
+    match s.get(0..1) {
+        None => String::new(),
+        Some(first) => first.to_uppercase() + &s[1..],
+    }
+}
 
 fn startup(session: &Session) -> io::Result<()> {
     //check network connectivity
@@ -429,86 +591,6 @@ fn startup(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
-fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
-    //check network connectivity
-    println!("Checking for network connectivity...");
-    //ping linux servers once to check for connectivity
-    let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
-    if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
-    }
-    //prepare the template at the target path
-    let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name);
-    match session.os.as_str() {
-        "linux" => {
-            // Ensure git is installed
-            if !is_command_available("git") {
-                let mut success = false;
-                let mut attempt = 0;
-                let max_attempts = 3;
-                while success == false && attempt < max_attempts{
-                    attempt += 1;
-                    println!("git not found. Installing git...");
-                    let git_output = Command::new("sudo")
-                        .args(&["bash", "-c", "apt install -y git"])
-                        .output()?;
-                    println!("git install stdout: {}", String::from_utf8_lossy(&git_output.stdout));
-                    if !git_output.status.success() {
-                        println!("git install stderr: {}", String::from_utf8_lossy(&git_output.stderr));
-                    }else{
-                        success = true;
-                    }
-                }
-                if success == false{
-                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to install git"));
-                }
-                
-            }
-
-            // Create the parent directory if it doesn't exist
-            if !Path::new(&new_path).exists() {
-                println!("Creating directory: {}", &new_path);
-                let mkdir_output = Command::new("mkdir")
-                    .args(&["-p", &new_path])
-                    .output()?;
-                if !mkdir_output.status.success() {
-                    println!("mkdir stderr: {}", String::from_utf8_lossy(&mkdir_output.stderr));
-                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to create projs directory"));
-                }
-            }
-
-            // Clone the template repository
-            println!("Cloning template from https://github.com/dav-anderson/ramp_template to {}", &new_path);
-            let clone_output = Command::new("git")
-                .args(&["clone", "https://github.com/dav-anderson/ramp_template", &new_path])
-                .output()?;
-            println!("git clone stdout: {}", String::from_utf8_lossy(&clone_output.stdout));
-            if !clone_output.status.success() {
-                println!("git clone stderr: {}", String::from_utf8_lossy(&clone_output.stderr));
-                return Err(io::Error::new(io::ErrorKind::Other, "Failed to clone template repository"));
-            }
-
-            println!("Template cloned successfully to {}", &new_path);
-        }
-        _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for cloning template")),
-    }
-
-    //TODO rename everything inside of the template appropriately
-
-    //update the current loaded project to the new project
-    load_project(session, &name)?;
-
-    Ok(())
-}
-
-
-fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
-    println!("loading project...");
-    session.update_current_project(name.to_string())?;
-
-    Ok(())
-}
-
 fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
@@ -517,14 +599,12 @@ fn main() -> io::Result<()> {
 
     //create new proj
     let name: &str = "testproj";
-    // new_project(&mut session, &name)?;
+    new_project(&mut session, &name)?;
     println!("current project: {:?}", session.current_project);
-    load_project(&mut session, name)?;
+    // load_project(&mut session, name)?;
     println!("current project: {:?}", session.current_project);
 
     //TODOS
-
-    //new project must rename everything in the repo appropriately
 
     //Single Icon depository with global configuration
 
