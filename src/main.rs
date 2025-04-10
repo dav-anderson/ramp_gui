@@ -30,8 +30,19 @@ impl Session {
         })
     }
 
-    fn update_current_project(&mut self, name: String) {
-        self.current_project = Some(format!("{}/{}", self.projects_path.as_ref().unwrap_or(&String::new()), name));
+    fn update_current_project(&mut self, name: String) -> io::Result<()> {
+        let new_path = format!("{}/{}", self.projects_path.as_ref().unwrap_or(&String::new()), name);
+        //check that the requested project exists at the specificed path
+        if !Path::new(&new_path).exists(){
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to load project, project not found"));
+        }
+        //check the requested project for compatibility with ramp
+        if Path::new(&format!("{}/.ramp", &new_path)).exists() {
+            self.current_project = Some(new_path);
+            return Ok(());
+        }else{
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to load project, not compatible with ramp"));
+        }
     }
 }
 
@@ -374,6 +385,7 @@ fn startup(session: &Session) -> io::Result<()> {
     install_build_targets(&session)?;
 
     //TODO this is broken
+    //ENSURE IT checks for existing installation at the path we expect from this installation only (do not search)
     // install_android_sdk_and_ndk(&session)?;
 
     //TODO install everything for macos
@@ -426,12 +438,7 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     // if !output.status.success() {
     //     return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
     // }
-    session.update_current_project(name.to_string());
-    println!("creating new project named: {}", name);
-    let projs_dir = match &session.current_project{
-        Some(path) => path,
-        None => return Err(io::Error::new(io::ErrorKind::Other, "no project path found")),
-    };
+    let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name);
     match session.os.as_str() {
         "linux" => {
             // Ensure git is installed
@@ -459,10 +466,10 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
             }
 
             // Create the parent directory if it doesn't exist
-            if !Path::new(projs_dir).exists() {
-                println!("Creating directory: {}", projs_dir);
+            if !Path::new(&new_path).exists() {
+                println!("Creating directory: {}", &new_path);
                 let mkdir_output = Command::new("mkdir")
-                    .args(&["-p", projs_dir])
+                    .args(&["-p", &new_path])
                     .output()?;
                 if !mkdir_output.status.success() {
                     println!("mkdir stderr: {}", String::from_utf8_lossy(&mkdir_output.stderr));
@@ -471,9 +478,9 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
             }
 
             // Clone the template repository
-            println!("Cloning template from https://github.com/dav-anderson/ramp_template to {}", projs_dir);
+            println!("Cloning template from https://github.com/dav-anderson/ramp_template to {}", &new_path);
             let clone_output = Command::new("git")
-                .args(&["clone", "https://github.com/dav-anderson/ramp_template", projs_dir])
+                .args(&["clone", "https://github.com/dav-anderson/ramp_template", &new_path])
                 .output()?;
             println!("git clone stdout: {}", String::from_utf8_lossy(&clone_output.stdout));
             if !clone_output.status.success() {
@@ -481,10 +488,20 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
                 return Err(io::Error::new(io::ErrorKind::Other, "Failed to clone template repository"));
             }
 
-            println!("Template cloned successfully to {}", projs_dir);
+            println!("Template cloned successfully to {}", &new_path);
         }
         _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for cloning template")),
     }
+
+    session.update_current_project(name.to_string())?;
+
+
+    Ok(())
+}
+
+fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
+    println!("loading project...");
+    session.update_current_project(name.to_string())?;
 
     Ok(())
 }
@@ -492,31 +509,35 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
 fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
+    //TODO commented out for testing only
     // startup(&session);
 
     //create new proj
     let name: &str = "testproj";
-    new_project(&mut session, &name)?;
+    // new_project(&mut session, &name)?;
+    println!("current project: {:?}", session.current_project);
+    load_project(&mut session, name)?;
+    println!("current project: {:?}", session.current_project);
 
     //TODOS
-
-    //set projects path & save custom path with a conf
-
-    //check project for a .ramp
-
-    //create a new template from github template ramp_template
-
-    //template version tracking
-
-    //load and existing project
-
-    //set up key signers for android & ios based on OS
 
     //Single Icon depository with global configuration
 
     //BUILD for target environments
 
     //BUILD for simulators
+
+    //finish startup for ubuntu (android) & macos
+
+    //set up key signers for android & ios based on OS
+
+    //WISHLIST
+
+    //ability to use an existing android sdk/ndk installation
+
+    //template version tracking
+
+    //ability to customize projects path
 
     Ok(())
 }
