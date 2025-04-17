@@ -2,9 +2,9 @@ use std::process::{Command, Stdio};
 use std::io::{self, Write};
 use std::env;
 use std::path::Path;
+use std::fs::File;
 use std::fs;
-
-
+use image::{self, imageops, GenericImageView, DynamicImage, ImageFormat, ImageEncoder};
 
 struct Session {
     os: String,
@@ -40,7 +40,7 @@ impl Session {
         }
         //check the requested project for compatibility with ramp
         if Path::new(&format!("{}/.ramp", &new_path)).exists() {
-            self.current_project = Some(new_path);
+            self.current_project = Some(name);
             return Ok(());
         }else{
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to load project, not compatible with ramp"));
@@ -199,6 +199,7 @@ fn install_rust_toolchain() -> io::Result<()> {
     Ok(())
 }
 
+//install build targets for all supported ramp outputs
 fn install_build_targets(session: &Session) -> io::Result<()> {
     println!("Detected OS: {}", session.os);
 
@@ -252,7 +253,7 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
             println!("Target: {} already installed", target);
         }
     }
-
+    //macos only
     if session.os.as_str() == "macos" {
         for target in mac_targets {
             if !installed.contains(&target) {
@@ -277,13 +278,14 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
+//install android dev kits
 fn install_android_sdk_and_ndk(session: &Session) -> io::Result<()> {
     println!("Setting up Android SDK and NDK for {}", session.os);
     let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
     let sdk_root = format!("{}/Android/sdk", home);
     let cmdline_tools_dir = format!("{}/cmdline-tools", sdk_root);
     let desired_ndk_version = "26.1.10909125";
-
+    //determine the OS
     match session.os.as_str() {
         "linux" => {
             // Remove any existing SDK directory (optional, ensures fresh install)
@@ -350,6 +352,7 @@ fn install_android_sdk_and_ndk(session: &Session) -> io::Result<()> {
             env::set_var("PATH", &new_path);
             println!("Android SDK and NDK installed, PATH updated:\n{}", new_path);
         }
+        //macos path will go here
         _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for Android SDK/NDK installation")),
     }
     Ok(())
@@ -363,8 +366,8 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     if !output.status.success() {
         return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
     }
-    //prepare the template at the target path
     let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name.to_lowercase());
+    //prepare the template at the target path
     match session.os.as_str() {
         "linux" => {
             // Ensure git is installed
@@ -401,6 +404,8 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
                     println!("mkdir stderr: {}", String::from_utf8_lossy(&mkdir_output.stderr));
                     return Err(io::Error::new(io::ErrorKind::Other, "Failed to create projs directory"));
                 }
+            }else{
+                return Err(io::Error::new(io::ErrorKind::Other, "Project by that name already exists"));
             }
 
             // Clone the template repository
@@ -435,6 +440,7 @@ fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
     Ok(())
 }
 
+//renames all of the paths and file contents of the template to match the user provided name when creating a new ramp project
 fn template_naming(session: &mut Session, name: &str) -> io::Result<()> {
     let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name);
     let capitalized_name = capitalize_first(name);
@@ -460,6 +466,7 @@ fn template_naming(session: &mut Session, name: &str) -> io::Result<()> {
     Ok(())
 }
 
+//renames a target directory to a given new String
 fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
     // Get the parent directory of the current path
     let current_dir = Path::new(current_path);
@@ -482,6 +489,7 @@ fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
     Ok(())
 }
 
+//find and replace target strings in a target file
 fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) -> io::Result<()> {
     // Read the file content into a string
     let content = fs::read_to_string(file_path).map_err(|e| {
@@ -509,6 +517,7 @@ fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) ->
     Ok(())
 }
 
+//capitalize the first letter in a string
 fn capitalize_first(s: &str) -> String {
     match s.get(0..1) {
         None => String::new(),
@@ -516,6 +525,182 @@ fn capitalize_first(s: &str) -> String {
     }
 }
 
+fn resize_png(input_name: &str, target_name: &str, width: u32, height: u32) -> io::Result<()> {
+    // Open the input PNG file
+    let img = image::open(input_name).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to open {}: {}", input_name, e),
+        )
+    })?;
+
+    //remove target output if it exists
+    if Path::new(&target_name).exists(){
+        let output = Command::new("sudo").args(["rm", &target_name]).output().unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old icon: {}"));
+        }
+    }
+
+    // Resize the image to the target resolution
+    let resized_img = imageops::resize(&img, width, height, imageops::FilterType::Lanczos3);
+
+    // Save the resized image to the target name
+    resized_img.save(target_name).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to save {}: {}", target_name, e),
+        )
+    })?;
+
+    println!("Resized {} to {}x{} and saved as {}", input_name, width, height, target_name);
+    Ok(())
+}
+
+fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
+    let windows = "windows_icon.ico";
+    let favicon = "favicon.ico";
+    let win_output_path = format!("{}/{}/assets/resources/icons/{}", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), windows);
+    let wasm_output_path = format!("{}/{}/assets/resources/icons/{}", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), favicon);
+
+
+   //remove old windows.ico if it exists
+    if Path::new(&win_output_path).exists(){
+        let output = Command::new("sudo").args(["rm", &win_output_path]).output().unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old windows icon: {}"));
+        }
+    }
+    //remove old favicon if it exists
+    if Path::new(&wasm_output_path).exists(){
+        let output = Command::new("sudo").args(["rm", &wasm_output_path]).output().unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old favicon: {}"));
+        }
+    }
+    // Open the PNG file
+    let img = image::open(input_path).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to open {}: {}", input_path, e),
+        )
+    })?;
+
+    // Resize to the specified size
+    let resized = imageops::resize(&img, 64, 64, imageops::FilterType::Lanczos3);
+    let resized_img = DynamicImage::ImageRgba8(resized);
+
+    // Write as ICO
+    let file = std::fs::File::create(win_output_path.clone())?;
+    let mut writer = std::io::BufWriter::new(file);
+    let encoder = image::codecs::ico::IcoEncoder::new(&mut writer);
+    encoder
+        .write_image(
+            resized_img.as_bytes(),
+            64,
+            64,
+            image::ExtendedColorType::Rgba8,
+        )
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to save {} as ICO: {}", win_output_path, e),
+            )
+        })?;
+    println!("Converted {} to ICO ({}x{}) and saved as {}", input_path, 64, 64, win_output_path);
+
+    //check for app.rc and if it exists remove it
+    let rc = format!("{}/{}/app.rc", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    if Path::new(&rc).exists(){
+        let output = Command::new("sudo").args(["rm", &rc]).output().unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old app.rc: {}"));
+        }
+    }
+    //create a new app.rc using absolute path passed in
+    let ico_path = format!("{}/{}/assets/resources/icons/windows_icon.ico", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    let rc_content = format!(r#"IDI_ICON1 ICON "{}""#, ico_path);
+    let mut rc_file = File::create(&rc)?;
+    rc_file.write_all(rc_content.as_bytes())?;
+    //ensure the file is fully written
+    rc_file.flush()?;
+    //explicitly close the file
+    drop(rc_file);
+    println!("created resource file: {}", &rc);
+    let res = format!("{}/{}/app.res", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    println!("rc path: {}", &rc);
+    println!("res path: {}", &res);
+    let build_path = format!("{}/{}/build.rs", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    //if a build.rs file exists, first remove it.
+    if Path::new(&build_path).exists(){
+        let output = Command::new("sudo").args(["rm", &build_path]).output().unwrap();
+        if !output.status.success(){
+            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old build.rs"));
+        }
+    }
+    //populate the build.rs content
+    let build_content = format!(
+        r#"
+        use std::io;
+
+        fn main() {{
+            if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows" && std::path::Path::new({}).exists() {
+                embed_resource::compile({}, embed_resource::NONE)
+                .manifest_optional();
+            }
+    }}
+    
+        "#, &ico_path, &rc_content
+    );
+    //Generate a build.rs file
+    let mut build_file = fs::File::create(&build_path)?;
+    build_file.write_all(build_content.as_bytes())?;
+    build_file.flush()?;
+    println!("Created Build.rs at {}", &build_path);
+    //copy windows_icon.ico into a favicon.ico
+    let output = Command::new("sudo").args(["cp", &win_output_path, &wasm_output_path]).output().unwrap();
+
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "could not copy favicon: {}"));
+    }
+    println!("copied {} ({}x{}) as {}", win_output_path, 64, 64, wasm_output_path);
+    Ok(())
+}
+
+//update all of the icons in the project from a single image provided in <projects_path>/<project_name>/assets/resources/icons
+//reccomended input is a 1024X1024 .png
+fn update_icons(session: &Session) -> io::Result<()> {
+    let originating_icon = format!("{}/{}/assets/resources/icons/icon.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    //update android icons
+    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-mdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 48, 48)?;
+    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-hdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 72, 72)?;
+    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 96, 96)?;
+    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 144, 144)?;
+    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 192, 192)?;
+
+    //update windows icon
+    convert_png_to_ico(&session, &originating_icon)?;
+
+    //TODO macos only 
+    if session.os.as_str() == "macos"{
+        println!("TODO macos")
+        //TODO update macos icons
+        //convert to 1024x1024?
+        //remove existing icns?
+        //sips -s format format!("{}/{}/assets/resources/icons/icon.png", session.projects_path, session.current_project) --out format!("{}/{}/macos/{}.app/Contents/Resources/macos_icon.icns", session.projects_path, session.current_project, capitalize_first(session.current_project))
+
+        //update ios icons
+        // resize_png(originating_icon, format!("ios/{}.app/Assets/ios_icon120.png", capitalize_first(session.current_project)), 120, 120);
+        // resize_png(originating_icon, format!("ios/{}.app/Assets/ios_icon180.png", capitalize_first(session.current_project)), 180, 180);
+    }
+    Ok(())
+}
+
+fn build_output(session: &Session, target_os: String, release: bool) -> io::Result<()> {
+
+}
+
+//initialization function upon starting the app
 fn startup(session: &Session) -> io::Result<()> {
     //check network connectivity
     println!("Checking for network connectivity...");
@@ -591,18 +776,22 @@ fn startup(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
+
 fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
-    //TODO commented out for testing only
+    //TODO commented out for testing only, uncomment this later
     // startup(&session);
 
     //create new proj
     let name: &str = "testproj";
     new_project(&mut session, &name)?;
     println!("current project: {:?}", session.current_project);
+    //TODO remove this later, for testing only
     // load_project(&mut session, name)?;
     println!("current project: {:?}", session.current_project);
+
+    update_icons(&session)?;
 
     //TODOS
 
