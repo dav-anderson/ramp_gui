@@ -444,13 +444,15 @@ fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
 fn template_naming(session: &mut Session, name: &str) -> io::Result<()> {
     let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name);
     let capitalized_name = capitalize_first(name);
-    //rename dir ios/Webgpu.app
-    rename_directory(&format!("{}/ios/Webgpu.app", new_path), &format!("{}.app", &capitalized_name))?;
-    //rename ios/Webgpu.app/Info.plist
+    //rename app in Cargo.toml
     let replacements = vec![
         ("Webgpu", capitalized_name.as_str()),
         ("webgpu", name)
     ];
+    replace_strings_in_file(&format!("{}/Cargo.toml", new_path), &replacements)?;
+    //rename dir ios/Webgpu.app
+    rename_directory(&format!("{}/ios/Webgpu.app", new_path), &format!("{}.app", &capitalized_name))?;
+    //rename ios/Webgpu.app/Info.plist
     replace_strings_in_file(&format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name), &replacements)?;
     //rename dir macos/Webgpu.app
     rename_directory(&format!("{}/macos/Webgpu.app", new_path), &format!("{}.app", &capitalized_name))?;
@@ -644,13 +646,13 @@ fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
         use std::io;
 
         fn main() {{
-            if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows" && std::path::Path::new({}).exists() {
-                embed_resource::compile({}, embed_resource::NONE)
+            if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows" && std::path::Path::new("{}").exists() {{
+                embed_resource::compile("app.rc", embed_resource::NONE)
                 .manifest_optional();
-            }
+            }}
     }}
     
-        "#, &ico_path, &rc_content
+        "#, &ico_path
     );
     //Generate a build.rs file
     let mut build_file = fs::File::create(&build_path)?;
@@ -697,7 +699,59 @@ fn update_icons(session: &Session) -> io::Result<()> {
 }
 
 fn build_output(session: &Session, target_os: String, release: bool) -> io::Result<()> {
+    // Validate project path
+    let project_path = format!("{}/{}", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    let project_dir = Path::new(&project_path);
+    if !project_dir.exists() || !project_dir.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Project directory not found: {}", project_path),
+        ));
+    }
+    if !project_dir.join("Cargo.toml").exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("No Cargo.toml found in {}", project_path),
+        ));
+    }
 
+    // Map target_os to Cargo command
+    let cargo_args = match target_os.as_str() {
+        "windows" => format!("build --target x86_64-pc-windows-gnu{}", if release { " --release " } else { "" }),
+        "linux" => format!("build{}", if release { " --release " } else { "" }),
+        "wasm" => format!("build --lib --target wasm32-unknown-unknown{}", if release { " --release " } else { "" }),
+        "android" => format!("apk build{}", if release { " --release " } else { " --lib " }),
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Unsupported target OS: {}", target_os),
+            ))
+        }
+    };
+
+    // Execute cargo build
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(format!("cargo {}", cargo_args))
+        .current_dir(project_dir) // Set working directory
+        .stdout(Stdio::inherit()) // Show build output
+        .stderr(Stdio::inherit())
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Cargo build failed: {}", error),
+        ));
+    }
+
+    println!(
+        "Successfully built project at {} for target {} ({} mode)",
+        project_path,
+        target_os,
+        if release { "release" } else { "debug" }
+    );
+    Ok(())
 }
 
 //initialization function upon starting the app
@@ -781,7 +835,7 @@ fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
     //TODO commented out for testing only, uncomment this later
-    // startup(&session);
+    startup(&session);
 
     //create new proj
     let name: &str = "testproj";
@@ -792,6 +846,8 @@ fn main() -> io::Result<()> {
     println!("current project: {:?}", session.current_project);
 
     update_icons(&session)?;
+
+    build_output(&session, "windows".to_string(), false)?;
 
     //TODOS
 
