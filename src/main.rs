@@ -1243,19 +1243,18 @@ fn main() -> io::Result<()> {
 
     //TODOS
 
-    //everywhere there is an env set_var, need to set the .bashrc for persistence like in the java_home situation
-
-    //implement start to finish android setup
-
-    //BUILD for target environments Android & MacOS & IOS
-
+    //LINUX
+    //setup/config key signers
     //BUILD for simulators, deploy simulator, hot load over a usb
 
-    //finish startup for ubuntu (android) & macos
 
-    //set up key signers for android & ios based on OS
 
-    //implement start to finish macos setup
+    //MACOS
+    //implement start to finish macos
+    //BUILD for target environments MacOS & IOS
+    //BUILD for simulators, deploy simulator, hot load over a usb
+    //startup for macos
+    //set up/config key signers
 
     //WISHLIST
 
