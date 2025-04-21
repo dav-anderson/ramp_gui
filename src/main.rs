@@ -1,15 +1,15 @@
-use std::process::{Command, Stdio};
-use std::io::{self, Write};
+use image::{self, imageops, DynamicImage, GenericImageView, ImageEncoder, ImageFormat};
 use std::env;
-use std::path::Path;
-use std::fs::File;
 use std::fs;
-use image::{self, imageops, GenericImageView, DynamicImage, ImageFormat, ImageEncoder};
+use std::fs::File;
+use std::io::{self, Write};
+use std::path::Path;
+use std::process::{Command, Stdio};
 
 struct Session {
     os: String,
     projects_path: Option<String>,
-    current_project: Option<String>
+    current_project: Option<String>,
 }
 
 impl Session {
@@ -17,11 +17,16 @@ impl Session {
         let os = env::consts::OS.to_string();
         let projects_path = match os.as_str() {
             "linux" => {
-                let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
+                let home = env::var("HOME").map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!("Failed to get HOME: {}", e),
+                    )
+                })?;
                 Some(format!("{}/ramp", home))
             }
             //TODO MACOS here
-            "macos" => None, 
+            "macos" => None,
             //unsupported OS
             _ => None,
         };
@@ -33,17 +38,27 @@ impl Session {
     }
 
     fn update_current_project(&mut self, name: String) -> io::Result<()> {
-        let new_path = format!("{}/{}", self.projects_path.as_ref().unwrap_or(&String::new()), name);
+        let new_path = format!(
+            "{}/{}",
+            self.projects_path.as_ref().unwrap_or(&String::new()),
+            name
+        );
         //check that the requested project exists at the specificed path
-        if !Path::new(&new_path).exists(){
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to load project, project not found"));
+        if !Path::new(&new_path).exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to load project, project not found",
+            ));
         }
         //check the requested project for compatibility with ramp
         if Path::new(&format!("{}/.ramp", &new_path)).exists() {
             self.current_project = Some(name);
             return Ok(());
-        }else{
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to load project, not compatible with ramp"));
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to load project, not compatible with ramp",
+            ));
         }
     }
 }
@@ -77,20 +92,27 @@ fn install_rustup(session: &Session) -> io::Result<()> {
             let mut attempts = 0;
             let max_attempts = 3;
             let mut success = false;
-            while attempts < max_attempts && success == false{
+            while attempts < max_attempts && success == false {
                 let mut apt_success = false;
                 let mut curl_success = false;
                 let mut unzip_success = false;
                 attempts += 1;
                 //update apt
-                println!("running sudo apt update... attempt:{}", attempts.to_string());
-                let apt_output = Command::new("sudo")
-                    .args(["apt", "update"])
-                    .output()?;
-                println!("apt update stdout: {}", String::from_utf8_lossy(&apt_output.stdout));
+                println!(
+                    "running sudo apt update... attempt:{}",
+                    attempts.to_string()
+                );
+                let apt_output = Command::new("sudo").args(["apt", "update"]).output()?;
+                println!(
+                    "apt update stdout: {}",
+                    String::from_utf8_lossy(&apt_output.stdout)
+                );
                 if !apt_output.status.success() {
-                    println!("apt update stderr: {}", String::from_utf8_lossy(&apt_output.stderr));
-                }else{
+                    println!(
+                        "apt update stderr: {}",
+                        String::from_utf8_lossy(&apt_output.stderr)
+                    );
+                } else {
                     println!("apt success");
                     apt_success = true;
                 }
@@ -100,8 +122,11 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                     .args(["apt", "install", "curl", "-y"])
                     .output()?;
                 if !curl_output.status.success() {
-                    println!("failed to install curl, stderr: {}", String::from_utf8_lossy(&curl_output.stderr));
-                }else{
+                    println!(
+                        "failed to install curl, stderr: {}",
+                        String::from_utf8_lossy(&curl_output.stderr)
+                    );
+                } else {
                     println!("curl success");
                     curl_success = true;
                 }
@@ -111,20 +136,26 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                     .args(["apt", "install", "unzip", "-y"])
                     .output()?;
                 if !unzip_output.status.success() {
-                    println!("failed to install unzip, stderr: {}", String::from_utf8_lossy(&unzip_output.stderr));
-                }else{
+                    println!(
+                        "failed to install unzip, stderr: {}",
+                        String::from_utf8_lossy(&unzip_output.stderr)
+                    );
+                } else {
                     println!("unzip success");
                     unzip_success = true;
                 }
-                if unzip_success == true && curl_success == true && apt_success == true{
+                if unzip_success == true && curl_success == true && apt_success == true {
                     success = true;
                     println!("********apt loop success******")
                 }
             }
-            if success == false{
-                return Err(io::Error::new(io::ErrorKind::Other, "Failed to apt update & install curl and unzip"));
+            if success == false {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Failed to apt update & install curl and unzip",
+                ));
             }
-   
+
             println!("Downloading and installing rustup...");
             let status = Command::new("sh")
                 .arg("-c")
@@ -169,6 +200,27 @@ fn install_rustup(session: &Session) -> io::Result<()> {
             })?;
             let current_path = env::var("PATH").unwrap_or_default();
             env::set_var("PATH", format!("{}/.cargo/bin:{}", home, current_path));
+            // Persist cargo PATH in .bashrc
+            let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
+            let cargo_bin = format!("{}/.cargo/bin", home);
+            let bashrc_path = format!("{}/.bashrc", home);
+            let path_entry = format!("\nexport PATH=$PATH:{}\n", cargo_bin);
+            let mut bashrc_content = if Path::new(&bashrc_path).exists() {
+                fs::read_to_string(&bashrc_path)?
+            } else {
+                String::new()
+            };
+            if !bashrc_content.contains(&path_entry) {
+                let mut bashrc_file = fs::OpenOptions::new()
+                    .write(true)
+                    .append(true)
+                    .create(true)
+                    .open(&bashrc_path)?;
+                bashrc_file.write_all(path_entry.as_bytes())?;
+                println!("Added cargo bin PATH to {}", bashrc_path);
+            } else {
+                println!("cargo bin PATH already in {}", bashrc_path);
+            }
         }
         _ => {
             return Err(io::Error::new(
@@ -218,18 +270,18 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
         "x86_64-linux-android".to_string(),
         "x86_64-pc-windows-gnu".to_string(),
         "wasm32-unknown-unknown".to_string(),
-    ]; 
+    ];
 
     //get list of current installations
     let output = Command::new("rustup")
-    .args(&["target", "list", "--installed"])
-    .output()?;
+        .args(&["target", "list", "--installed"])
+        .output()?;
 
     if !output.status.success() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
-            "Failed to list installed rustup targets"
-        ))
+            "Failed to list installed rustup targets",
+        ));
     }
 
     let installed = String::from_utf8_lossy(&output.stdout);
@@ -239,8 +291,8 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
         if !installed.contains(&target) {
             println!("Build target {} not found. Installing...", target);
             let status = Command::new("rustup")
-            .args(&["target", "add", &target])
-            .status()?;
+                .args(&["target", "add", &target])
+                .status()?;
 
             if !status.success() {
                 return Err(io::Error::new(
@@ -249,7 +301,7 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
                 ));
             }
             println!("Installed {} successfully", target);
-        } else{
+        } else {
             println!("Target: {} already installed", target);
         }
     }
@@ -259,9 +311,9 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
             if !installed.contains(&target) {
                 println!("Build target {} not found. Installing...", target);
                 let status = Command::new("rustup")
-                .args(&["target", "add", &target])
-                .status()?;
-    
+                    .args(&["target", "add", &target])
+                    .status()?;
+
                 if !status.success() {
                     return Err(io::Error::new(
                         io::ErrorKind::Other,
@@ -269,7 +321,7 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
                     ));
                 }
                 println!("Installed {} successfully", target);
-            } else{
+            } else {
                 println!("Target: {} already installed", target);
             }
         }
@@ -279,82 +331,221 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
 }
 
 //install android dev kits
-fn install_android_sdk_and_ndk(session: &Session) -> io::Result<()> {
+fn install_android_toolchains(session: &Session) -> io::Result<()> {
     println!("Setting up Android SDK and NDK for {}", session.os);
     let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
     let sdk_root = format!("{}/Android/sdk", home);
     let cmdline_tools_dir = format!("{}/cmdline-tools", sdk_root);
     let desired_ndk_version = "26.1.10909125";
-    //determine the OS
-    match session.os.as_str() {
-        "linux" => {
-            // Remove any existing SDK directory (optional, ensures fresh install)
-            if Path::new(&sdk_root).exists() {
-                println!("Removing existing SDK directory: {}", sdk_root);
-                Command::new("rm")
-                    .args(&["-rf", &sdk_root])
-                    .status()?;
-            }
+    let sdkmanager = format!("{}/bin/sdkmanager", cmdline_tools_dir);
+    let platform_tools = format!("{}/platform-tools/adb", sdk_root);
+    let platform_version = "31"; //API 31 (Android 14)
+    let platforms_dir = format!("{}/platforms/android-{}", sdk_root, platform_version);
+    let ndk_path = format!("{}/ndk/{}", sdk_root, desired_ndk_version);
 
-            // Download and install command-line tools
-            println!("Installing Android command-line tools...");
-            let sdk_url = "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip";
-            let download_path = format!("{}/cmdline-tools.zip", home);
-            Command::new("curl")
-                .args(&["-o", &download_path, sdk_url])
-                .status()?;
-            Command::new("mkdir")
-                .args(&["-p", &sdk_root])
-                .status()?;
-            Command::new("unzip")
-                .args(&["-o", &download_path, "-d", &sdk_root])
-                .status()?;
-            Command::new("mv")
-                .args(&[format!("{}/cmdline-tools", sdk_root), cmdline_tools_dir.clone()])
-                .status()?;
-            Command::new("rm")
-                .arg(&download_path)
-                .status()?;
-
-            // Set up sdkmanager path
-            let sdkmanager = format!("{}/latest/bin/sdkmanager", cmdline_tools_dir);
-
-            // Accept licenses
-            println!("Accepting Android SDK licenses...");
-            let license_output = Command::new(&sdkmanager)
-                .args(&["--licenses", "--no-ui"])
-                .output()?;
-            if !license_output.status.success() {
-                println!("License acceptance stderr: {}", String::from_utf8_lossy(&license_output.stderr));
-                return Err(io::Error::new(io::ErrorKind::Other, "Failed to accept Android SDK licenses"));
-            }
-
-            // Install SDK and NDK packages
-            let ndk_package = format!("ndk;{}", desired_ndk_version);
-            let packages = vec!["platform-tools", "build-tools;34.0.0", &ndk_package];
-            for package in packages {
-                println!("Installing {}...", package);
-                let install_output = Command::new(&sdkmanager)
-                    .args(&[package])
-                    .output()?;
-                if !install_output.status.success() {
-                    println!("Install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
-                    return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to install {}", package)));
-                }
-            }
-
-            // Update PATH
-            let current_path = env::var("PATH").unwrap_or_default();
-            let new_path = format!(
-                "{}:{}/platform-tools:{}/ndk/{}",
-                current_path, sdk_root, sdk_root, desired_ndk_version
-            );
-            env::set_var("PATH", &new_path);
-            println!("Android SDK and NDK installed, PATH updated:\n{}", new_path);
+    // Check for JAVA_HOME and JDK
+    let java_home = env::var("JAVA_HOME").unwrap_or_default();
+    let java_ok = Command::new("java")
+        .arg("-version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !java_ok || java_home.is_empty() {
+        println!("JDK not found or JAVA_HOME not set. Installing OpenJDK 17...");
+        println!("java_home: {}", &java_home.to_string());
+        println!("java_ok: {}", &java_ok.to_string());
+        let update_output = Command::new("sudo")
+            .args(&["bash", "-c", "apt update"])
+            .output()?;
+        if !update_output.status.success() {
+            println!("apt update stderr: {}", String::from_utf8_lossy(&update_output.stderr));
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to run apt update"));
         }
-        //macos path will go here
-        _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for Android SDK/NDK installation")),
+        let install_output = Command::new("sudo")
+            .args(&["bash", "-c", "apt install -y openjdk-17-jdk"])
+            .output()?;
+        if !install_output.status.success() {
+            println!("apt install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to install OpenJDK 17"));
+        }
+        // Set JAVA_HOME for current process
+        let java_home = "/usr/lib/jvm/java-17-openjdk-amd64";
+        env::set_var("JAVA_HOME", java_home);
+        println!("Installed OpenJDK 17 and set JAVA_HOME={}", java_home);
+    } else {
+        println!("JDK found with JAVA_HOME={}", java_home);
     }
+
+    // Check for existing SDK/NDK configuration
+    let sdk_configured = {
+        let sdkmanager_ok = Path::new(&sdkmanager).exists()
+            && Command::new(&sdkmanager)
+                .args([&format!("--sdk_root={}", &sdk_root),"--version"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+        let platform_tools_ok = Path::new(&platform_tools).exists()
+            && Command::new("adb")
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+        let platforms_ok = Path::new(&platforms_dir).exists();
+        let ndk_ok = Path::new(&ndk_path).exists();
+        if !ndk_ok {
+            let ndk_dir = format!("{}/ndk", sdk_root);
+            if Path::new(&ndk_dir).exists() {
+                let versions = fs::read_dir(&ndk_dir)?
+                    .filter_map(|entry| entry.ok())
+                    .filter(|entry| entry.path().is_dir())
+                    .map(|entry| entry.file_name().into_string().unwrap_or_default())
+                    .collect::<Vec<_>>();
+                println!("Available NDK versions: {:?}", versions);
+            }
+        }
+        println!(
+            "SDK checks: sdkmanager={} ({}), platform_tools={} ({}), platforms={} ({}) ndk={} ({})",
+            sdkmanager_ok, sdkmanager,
+            platform_tools_ok, platform_tools,
+            platforms_ok, platforms_dir,
+            ndk_ok, ndk_path
+        );
+        sdkmanager_ok && platform_tools_ok && platforms_ok && ndk_ok
+    };
+
+    if sdk_configured {
+        println!("Existing Android SDK and NDK found at {}. Skipping installation.", sdk_root);
+    } else {
+        // Proceed with installation if not configured
+        match session.os.as_str() {
+            "linux" => {
+                // Download and install command-line tools
+                println!("Installing Android command-line tools...");
+                let sdk_url = "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip";
+                let download_path = format!("{}/cmdline-tools.zip", home);
+                Command::new("curl")
+                    .args(&["-o", &download_path, sdk_url])
+                    .status()?;
+                Command::new("mkdir")
+                    .args(&["-p", &sdk_root])
+                    .status()?;
+                Command::new("unzip")
+                    .args(&["-o", &download_path, "-d", &sdk_root])
+                    .status()?;
+                Command::new("rm")
+                    .arg(&download_path)
+                    .status()?;
+                // Accept licenses
+                println!("Accepting Android SDK licenses...");
+                let mut license_cmd = Command::new("yes")
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+                let license_output = Command::new(&sdkmanager)
+                    .args(["--licenses", &format!("--sdk_root={}", &sdk_root)])
+                    .stdin(license_cmd.stdout.take().unwrap())
+                    .output()?;
+                license_cmd.wait()?;
+                if !license_output.status.success() {
+                    println!("License acceptance stderr: {}", String::from_utf8_lossy(&license_output.stderr));
+                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to accept Android SDK licenses"));
+                }
+                // Install SDK and NDK packages
+                let ndk_package = format!("ndk;{}", desired_ndk_version);
+                let platform_package = format!("platforms;android-{}", platform_version);
+                let packages = vec!["platform-tools", "build-tools;34.0.0", &platform_package, &ndk_package];
+                for package in packages {
+                    println!("Installing {}...", package);
+                    let install_output = Command::new(&sdkmanager)
+                        .args(&[package, &format!("--sdk_root={}", &sdk_root)])
+                        .output()?;
+                    if !install_output.status.success() {
+                        println!("Install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
+                        return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to install {}", package)));
+                    }
+                }
+                println!("Android SDK and NDK installed.");
+            }
+            _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for Android SDK/NDK installation")),
+        }
+    }
+
+    // Set environment variables for current process
+    env::set_var("JAVA_HOME", "/usr/lib/jvm/java-17-openjdk-amd64");
+    env::set_var("ANDROID_HOME", &sdk_root);
+    env::set_var("NDK_HOME", &ndk_path);
+    let current_path = env::var("PATH").unwrap_or_default();
+    let new_path = format!(
+        "{}:{}/platform-tools:{}", // Removed ndk from PATH as NDK_HOME is used
+        current_path, sdk_root, &ndk_path
+    );
+    env::set_var("PATH", &new_path);
+    println!("Set environment for current session: JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64, ANDROID_HOME={}, NDK_HOME={}, PATH={}", sdk_root, &ndk_path, new_path);
+
+    // Persist environment variables in .bashrc
+    let bashrc_path = format!("{}/.bashrc", home);
+    let env_entries = format!(
+        "\nexport JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64\nexport ANDROID_HOME={}\nexport NDK_HOME={}\nexport PATH=$PATH:{}/platform-tools:{}\n",
+        sdk_root, &ndk_path, sdk_root, &ndk_path
+    );
+    let mut bashrc_content = if Path::new(&bashrc_path).exists() {
+        fs::read_to_string(&bashrc_path)?
+    } else {
+        String::new()
+    };
+    if !bashrc_content.contains(&env_entries) {
+        let mut bashrc_file = fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(&bashrc_path)?;
+        bashrc_file.write_all(env_entries.as_bytes())?;
+        println!("Added JAVA_HOME, ANDROID_HOME, NDK_HOME, and PATH to {}", bashrc_path);
+    } else {
+        println!("Environment variables already in {}", bashrc_path);
+    }
+
+        // Check if cargo-apk is already installed
+        let cargo_apk_ok = Command::new("cargo")
+        .args(&["apk", "--version"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if cargo_apk_ok {
+        println!("cargo-apk is already installed. Skipping installation.");
+    } else {
+        // Ensure Android SDK/NDK and JAVA_HOME are set
+        let android_home = env::var("ANDROID_HOME").unwrap_or_default();
+        let ndk_home = env::var("NDK_HOME").unwrap_or_default();
+        let java_home = env::var("JAVA_HOME").unwrap_or_default();
+        if android_home.is_empty() || ndk_home.is_empty() || java_home.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "ANDROID_HOME, NDK_HOME, or JAVA_HOME not set. Please run install_android_sdk_and_ndk first.",
+            ));
+        }
+
+        // Install cargo-apk
+        println!("Installing cargo-apk...");
+        let install_output = Command::new("cargo")
+            .args(&["install", "cargo-apk"])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()?;
+        if !install_output.status.success() {
+            println!("cargo install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to install cargo-apk"));
+        }
+        println!("cargo-apk installed successfully.");
+    }
+
     Ok(())
 }
 
@@ -362,11 +553,21 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     //check network connectivity
     println!("Checking for network connectivity...");
     //ping linux servers once to check for connectivity
-    let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
+    let output = Command::new("ping")
+        .args(["-c", "1", "linux.org"])
+        .output()
+        .unwrap();
     if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "No network connection detected",
+        ));
     }
-    let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name.to_lowercase());
+    let new_path = format!(
+        "{}/{}",
+        session.projects_path.as_ref().unwrap_or(&String::new()),
+        name.to_lowercase()
+    );
     //prepare the template at the target path
     match session.os.as_str() {
         "linux" => {
@@ -375,53 +576,89 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
                 let mut success = false;
                 let mut attempt = 0;
                 let max_attempts = 3;
-                while success == false && attempt < max_attempts{
+                while success == false && attempt < max_attempts {
                     attempt += 1;
                     println!("git not found. Installing git...");
                     let git_output = Command::new("sudo")
                         .args(&["bash", "-c", "apt install -y git"])
                         .output()?;
-                    println!("git install stdout: {}", String::from_utf8_lossy(&git_output.stdout));
+                    println!(
+                        "git install stdout: {}",
+                        String::from_utf8_lossy(&git_output.stdout)
+                    );
                     if !git_output.status.success() {
-                        println!("git install stderr: {}", String::from_utf8_lossy(&git_output.stderr));
-                    }else{
+                        println!(
+                            "git install stderr: {}",
+                            String::from_utf8_lossy(&git_output.stderr)
+                        );
+                    } else {
                         success = true;
                     }
                 }
-                if success == false{
-                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to install git"));
+                if success == false {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Failed to install git",
+                    ));
                 }
-                
             }
 
             // Create the parent directory if it doesn't exist
             if !Path::new(&new_path).exists() {
                 println!("Creating directory: {}", &new_path);
-                let mkdir_output = Command::new("mkdir")
-                    .args(&["-p", &new_path])
-                    .output()?;
+                let mkdir_output = Command::new("mkdir").args(&["-p", &new_path]).output()?;
                 if !mkdir_output.status.success() {
-                    println!("mkdir stderr: {}", String::from_utf8_lossy(&mkdir_output.stderr));
-                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to create projs directory"));
+                    println!(
+                        "mkdir stderr: {}",
+                        String::from_utf8_lossy(&mkdir_output.stderr)
+                    );
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Failed to create projs directory",
+                    ));
                 }
-            }else{
-                return Err(io::Error::new(io::ErrorKind::Other, "Project by that name already exists"));
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Project by that name already exists",
+                ));
             }
 
             // Clone the template repository
-            println!("Cloning template from https://github.com/dav-anderson/ramp_template to {}", &new_path);
+            println!(
+                "Cloning template from https://github.com/dav-anderson/ramp_template to {}",
+                &new_path
+            );
             let clone_output = Command::new("git")
-                .args(&["clone", "https://github.com/dav-anderson/ramp_template", &new_path])
+                .args(&[
+                    "clone",
+                    "https://github.com/dav-anderson/ramp_template",
+                    &new_path,
+                ])
                 .output()?;
-            println!("git clone stdout: {}", String::from_utf8_lossy(&clone_output.stdout));
+            println!(
+                "git clone stdout: {}",
+                String::from_utf8_lossy(&clone_output.stdout)
+            );
             if !clone_output.status.success() {
-                println!("git clone stderr: {}", String::from_utf8_lossy(&clone_output.stderr));
-                return Err(io::Error::new(io::ErrorKind::Other, "Failed to clone template repository"));
+                println!(
+                    "git clone stderr: {}",
+                    String::from_utf8_lossy(&clone_output.stderr)
+                );
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Failed to clone template repository",
+                ));
             }
 
             println!("Template cloned successfully to {}", &new_path);
         }
-        _ => return Err(io::Error::new(io::ErrorKind::Other, "Unsupported OS for cloning template")),
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Unsupported OS for cloning template",
+            ))
+        }
     }
 
     //rename everything inside of the template with the project name
@@ -433,7 +670,6 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     Ok(())
 }
 
-
 fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
     println!("loading project...");
     session.update_current_project(name.to_string())?;
@@ -442,28 +678,41 @@ fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
 
 //renames all of the paths and file contents of the template to match the user provided name when creating a new ramp project
 fn template_naming(session: &mut Session, name: &str) -> io::Result<()> {
-    let new_path = format!("{}/{}", session.projects_path.as_ref().unwrap_or(&String::new()), name);
+    let new_path = format!(
+        "{}/{}",
+        session.projects_path.as_ref().unwrap_or(&String::new()),
+        name
+    );
     let capitalized_name = capitalize_first(name);
     //rename app in Cargo.toml
-    let replacements = vec![
-        ("Webgpu", capitalized_name.as_str()),
-        ("webgpu", name)
-    ];
+    let replacements = vec![("Webgpu", capitalized_name.as_str()), ("webgpu", name)];
     replace_strings_in_file(&format!("{}/Cargo.toml", new_path), &replacements)?;
     //rename dir ios/Webgpu.app
-    rename_directory(&format!("{}/ios/Webgpu.app", new_path), &format!("{}.app", &capitalized_name))?;
+    rename_directory(
+        &format!("{}/ios/Webgpu.app", new_path),
+        &format!("{}.app", &capitalized_name),
+    )?;
     //rename ios/Webgpu.app/Info.plist
-    replace_strings_in_file(&format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name), &replacements)?;
+    replace_strings_in_file(
+        &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
+        &replacements,
+    )?;
     //rename dir macos/Webgpu.app
-    rename_directory(&format!("{}/macos/Webgpu.app", new_path), &format!("{}.app", &capitalized_name))?;
-    //rename macos/Webgpu.app/Contents/Info.plist 
-    replace_strings_in_file(&format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name), &replacements)?;
+    rename_directory(
+        &format!("{}/macos/Webgpu.app", new_path),
+        &format!("{}.app", &capitalized_name),
+    )?;
+    //rename macos/Webgpu.app/Contents/Info.plist
+    replace_strings_in_file(
+        &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
+        &replacements,
+    )?;
     //rename Cargo.toml internals
-    let replacements = vec![
-        ("webgpu", name),
-        ("ramp_template", name)
-    ];
-    replace_strings_in_file(&format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name), &replacements)?;
+    let replacements = vec![("webgpu", name), ("ramp_template", name)];
+    replace_strings_in_file(
+        &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
+        &replacements,
+    )?;
 
     Ok(())
 }
@@ -473,7 +722,10 @@ fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
     // Get the parent directory of the current path
     let current_dir = Path::new(current_path);
     let parent_dir = current_dir.parent().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "Current path has no parent directory")
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Current path has no parent directory",
+        )
     })?;
 
     // Construct the new path by joining the parent directory with the target name
@@ -483,11 +735,20 @@ fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
     fs::rename(current_path, &new_path).map_err(|e| {
         io::Error::new(
             io::ErrorKind::Other,
-            format!("Failed to rename {} to {}: {}", current_path, new_path.display(), e),
+            format!(
+                "Failed to rename {} to {}: {}",
+                current_path,
+                new_path.display(),
+                e
+            ),
         )
     })?;
 
-    println!("Renamed directory from {} to {}", current_path, new_path.display());
+    println!(
+        "Renamed directory from {} to {}",
+        current_path,
+        new_path.display()
+    );
     Ok(())
 }
 
@@ -537,10 +798,16 @@ fn resize_png(input_name: &str, target_name: &str, width: u32, height: u32) -> i
     })?;
 
     //remove target output if it exists
-    if Path::new(&target_name).exists(){
-        let output = Command::new("sudo").args(["rm", &target_name]).output().unwrap();
+    if Path::new(&target_name).exists() {
+        let output = Command::new("sudo")
+            .args(["rm", &target_name])
+            .output()
+            .unwrap();
         if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old icon: {}"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not remove old icon: {}",
+            ));
         }
     }
 
@@ -555,29 +822,53 @@ fn resize_png(input_name: &str, target_name: &str, width: u32, height: u32) -> i
         )
     })?;
 
-    println!("Resized {} to {}x{} and saved as {}", input_name, width, height, target_name);
+    println!(
+        "Resized {} to {}x{} and saved as {}",
+        input_name, width, height, target_name
+    );
     Ok(())
 }
 
 fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
     let windows = "windows_icon.ico";
     let favicon = "favicon.ico";
-    let win_output_path = format!("{}/{}/assets/resources/icons/{}", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), windows);
-    let wasm_output_path = format!("{}/{}/assets/resources/icons/{}", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), favicon);
+    let win_output_path = format!(
+        "{}/{}/assets/resources/icons/{}",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap(),
+        windows
+    );
+    let wasm_output_path = format!(
+        "{}/{}/assets/resources/icons/{}",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap(),
+        favicon
+    );
 
-
-   //remove old windows.ico if it exists
-    if Path::new(&win_output_path).exists(){
-        let output = Command::new("sudo").args(["rm", &win_output_path]).output().unwrap();
+    //remove old windows.ico if it exists
+    if Path::new(&win_output_path).exists() {
+        let output = Command::new("sudo")
+            .args(["rm", &win_output_path])
+            .output()
+            .unwrap();
         if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old windows icon: {}"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not remove old windows icon: {}",
+            ));
         }
     }
     //remove old favicon if it exists
-    if Path::new(&wasm_output_path).exists(){
-        let output = Command::new("sudo").args(["rm", &wasm_output_path]).output().unwrap();
+    if Path::new(&wasm_output_path).exists() {
+        let output = Command::new("sudo")
+            .args(["rm", &wasm_output_path])
+            .output()
+            .unwrap();
         if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old favicon: {}"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not remove old favicon: {}",
+            ));
         }
     }
     // Open the PNG file
@@ -609,18 +900,32 @@ fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
                 format!("Failed to save {} as ICO: {}", win_output_path, e),
             )
         })?;
-    println!("Converted {} to ICO ({}x{}) and saved as {}", input_path, 64, 64, win_output_path);
+    println!(
+        "Converted {} to ICO ({}x{}) and saved as {}",
+        input_path, 64, 64, win_output_path
+    );
 
     //check for app.rc and if it exists remove it
-    let rc = format!("{}/{}/app.rc", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
-    if Path::new(&rc).exists(){
+    let rc = format!(
+        "{}/{}/app.rc",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap()
+    );
+    if Path::new(&rc).exists() {
         let output = Command::new("sudo").args(["rm", &rc]).output().unwrap();
         if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old app.rc: {}"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not remove old app.rc: {}",
+            ));
         }
     }
     //create a new app.rc using absolute path passed in
-    let ico_path = format!("{}/{}/assets/resources/icons/windows_icon.ico", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    let ico_path = format!(
+        "{}/{}/assets/resources/icons/windows_icon.ico",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap()
+    );
     let rc_content = format!(r#"IDI_ICON1 ICON "{}""#, ico_path);
     let mut rc_file = File::create(&rc)?;
     rc_file.write_all(rc_content.as_bytes())?;
@@ -629,15 +934,29 @@ fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
     //explicitly close the file
     drop(rc_file);
     println!("created resource file: {}", &rc);
-    let res = format!("{}/{}/app.res", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    let res = format!(
+        "{}/{}/app.res",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap()
+    );
     println!("rc path: {}", &rc);
     println!("res path: {}", &res);
-    let build_path = format!("{}/{}/build.rs", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    let build_path = format!(
+        "{}/{}/build.rs",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap()
+    );
     //if a build.rs file exists, first remove it.
-    if Path::new(&build_path).exists(){
-        let output = Command::new("sudo").args(["rm", &build_path]).output().unwrap();
-        if !output.status.success(){
-            return Err(io::Error::new(io::ErrorKind::Other, "could not remove old build.rs"));
+    if Path::new(&build_path).exists() {
+        let output = Command::new("sudo")
+            .args(["rm", &build_path])
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not remove old build.rs",
+            ));
         }
     }
     //populate the build.rs content
@@ -652,7 +971,8 @@ fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
             }}
     }}
     
-        "#, &ico_path
+        "#,
+        &ico_path
     );
     //Generate a build.rs file
     let mut build_file = fs::File::create(&build_path)?;
@@ -660,31 +980,89 @@ fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
     build_file.flush()?;
     println!("Created Build.rs at {}", &build_path);
     //copy windows_icon.ico into a favicon.ico
-    let output = Command::new("sudo").args(["cp", &win_output_path, &wasm_output_path]).output().unwrap();
+    let output = Command::new("sudo")
+        .args(["cp", &win_output_path, &wasm_output_path])
+        .output()
+        .unwrap();
 
     if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "could not copy favicon: {}"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "could not copy favicon: {}",
+        ));
     }
-    println!("copied {} ({}x{}) as {}", win_output_path, 64, 64, wasm_output_path);
+    println!(
+        "copied {} ({}x{}) as {}",
+        win_output_path, 64, 64, wasm_output_path
+    );
     Ok(())
 }
 
 //update all of the icons in the project from a single image provided in <projects_path>/<project_name>/assets/resources/icons
 //reccomended input is a 1024X1024 .png
 fn update_icons(session: &Session) -> io::Result<()> {
-    let originating_icon = format!("{}/{}/assets/resources/icons/icon.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    let originating_icon = format!(
+        "{}/{}/assets/resources/icons/icon.png",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap()
+    );
     //update android icons
-    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-mdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 48, 48)?;
-    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-hdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 72, 72)?;
-    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 96, 96)?;
-    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 144, 144)?;
-    resize_png(&originating_icon, &format!("{}/{}/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()), 192, 192)?;
+    resize_png(
+        &originating_icon,
+        &format!(
+            "{}/{}/android/app/src/main/res/mipmap-mdpi/ic_launcher.png",
+            session.projects_path.as_ref().unwrap(),
+            session.current_project.as_ref().unwrap()
+        ),
+        48,
+        48,
+    )?;
+    resize_png(
+        &originating_icon,
+        &format!(
+            "{}/{}/android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
+            session.projects_path.as_ref().unwrap(),
+            session.current_project.as_ref().unwrap()
+        ),
+        72,
+        72,
+    )?;
+    resize_png(
+        &originating_icon,
+        &format!(
+            "{}/{}/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
+            session.projects_path.as_ref().unwrap(),
+            session.current_project.as_ref().unwrap()
+        ),
+        96,
+        96,
+    )?;
+    resize_png(
+        &originating_icon,
+        &format!(
+            "{}/{}/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
+            session.projects_path.as_ref().unwrap(),
+            session.current_project.as_ref().unwrap()
+        ),
+        144,
+        144,
+    )?;
+    resize_png(
+        &originating_icon,
+        &format!(
+            "{}/{}/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+            session.projects_path.as_ref().unwrap(),
+            session.current_project.as_ref().unwrap()
+        ),
+        192,
+        192,
+    )?;
 
     //update windows icon
     convert_png_to_ico(&session, &originating_icon)?;
 
-    //TODO macos only 
-    if session.os.as_str() == "macos"{
+    //TODO macos only
+    if session.os.as_str() == "macos" {
         println!("TODO macos")
         //TODO update macos icons
         //convert to 1024x1024?
@@ -700,7 +1078,11 @@ fn update_icons(session: &Session) -> io::Result<()> {
 
 fn build_output(session: &Session, target_os: String, release: bool) -> io::Result<()> {
     // Validate project path
-    let project_path = format!("{}/{}", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap());
+    let project_path = format!(
+        "{}/{}",
+        session.projects_path.as_ref().unwrap(),
+        session.current_project.as_ref().unwrap()
+    );
     let project_dir = Path::new(&project_path);
     if !project_dir.exists() || !project_dir.is_dir() {
         return Err(io::Error::new(
@@ -717,10 +1099,19 @@ fn build_output(session: &Session, target_os: String, release: bool) -> io::Resu
 
     // Map target_os to Cargo command
     let cargo_args = match target_os.as_str() {
-        "windows" => format!("build --target x86_64-pc-windows-gnu{}", if release { " --release " } else { "" }),
+        "windows" => format!(
+            "build --target x86_64-pc-windows-gnu{}",
+            if release { " --release " } else { "" }
+        ),
         "linux" => format!("build{}", if release { " --release " } else { "" }),
-        "wasm" => format!("build --lib --target wasm32-unknown-unknown{}", if release { " --release " } else { "" }),
-        "android" => format!("apk build{}", if release { " --release " } else { " --lib " }),
+        "wasm" => format!(
+            "build --lib --target wasm32-unknown-unknown{}",
+            if release { " --release " } else { "" }
+        ),
+        "android" => format!(
+            "apk build{}",
+            if release { " --release " } else { " --lib " }
+        ),
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -759,10 +1150,16 @@ fn startup(session: &Session) -> io::Result<()> {
     //check network connectivity
     println!("Checking for network connectivity...");
     //ping linux servers once to check for connectivity
-	let output = Command::new("ping").args(["-c", "1", "linux.org"]).output().unwrap();
-	if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "No network connection detected"));
-	}
+    let output = Command::new("ping")
+        .args(["-c", "1", "linux.org"])
+        .output()
+        .unwrap();
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "No network connection detected",
+        ));
+    }
     println!("Checking for Rust toolchain...");
     // Check if rustup is installed
     if !is_command_available("rustup") {
@@ -785,19 +1182,13 @@ fn startup(session: &Session) -> io::Result<()> {
     //Install OS appropriate build targets
     install_build_targets(&session)?;
 
-    //TODO this is broken
-    //ENSURE IT checks for existing installation at the path we expect from this installation only (do not search)
-    // install_android_sdk_and_ndk(&session)?;
+    //install android toolchains
+    install_android_toolchains(&session)?;
 
     //TODO install everything for macos
 
-    //Install android SDK & NDK & verify it works (TODO THIS CURRENTLY RUNS EVERYTIME NEED TO FIX)
-
-    //install_android_tools
-
     //install homebrew if mac (need to test thoroughly)
     ///bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    
     //install xcode if mac
     //ruby -v
     //if ruby not installed
@@ -826,40 +1217,45 @@ fn startup(session: &Session) -> io::Result<()> {
     // EOF
 
     //install all other dependencies needed based on OS (might require homebrew first for macos)
-
     Ok(())
 }
-
 
 fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
-    //TODO commented out for testing only, uncomment this later
+    //initial startup
     startup(&session);
 
     //create new proj
     let name: &str = "testproj";
-    new_project(&mut session, &name)?;
-    println!("current project: {:?}", session.current_project);
-    //TODO remove this later, for testing only
-    // load_project(&mut session, name)?;
+    // new_project(&mut session, &name)?;
     println!("current project: {:?}", session.current_project);
 
+    //load an existing proj
+    load_project(&mut session, name)?;
+    println!("current project: {:?}", session.current_project);
+
+    //format the icon.png in assets/resources/icons across all outputs
     update_icons(&session)?;
 
-    build_output(&session, "windows".to_string(), false)?;
+    //build the target output build_output(session: &Session, target_os: String, release: bool)
+    build_output(&session, "android".to_string(), false)?;
 
     //TODOS
 
-    //Single Icon depository with global configuration
+    //everywhere there is an env set_var, need to set the .bashrc for persistence like in the java_home situation
 
-    //BUILD for target environments
+    //implement start to finish android setup
 
-    //BUILD for simulators
+    //BUILD for target environments Android & MacOS & IOS
+
+    //BUILD for simulators, deploy simulator, hot load over a usb
 
     //finish startup for ubuntu (android) & macos
 
     //set up key signers for android & ios based on OS
+
+    //implement start to finish macos setup
 
     //WISHLIST
 
@@ -871,5 +1267,3 @@ fn main() -> io::Result<()> {
 
     Ok(())
 }
-
-
