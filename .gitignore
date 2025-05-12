@@ -1,2 +1,4 @@
 /target
 update.sh
+update_linux.sh
+update_mac.sh
