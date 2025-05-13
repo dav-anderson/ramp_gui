@@ -1643,15 +1643,28 @@ fn update_icons(session: &Session) -> io::Result<()> {
 
     //TODO macos only
     if session.os.as_str() == "macos" {
-        println!("TODO update icons for macos/ios")
+        println!("update icons for macos/ios")
+        resize_png(
+            &originating_icon,
+            &format!("{}/{}/ios/{}.app/Assets/ios_icon120.png", session.projects_path.as_ref().unwrap(),
+            session.current_project.as_ref().unwrap(),
+            capitalize_first(session.current_project.as_ref().unwrap())),
+            120,
+            120,
+        )?;
+        resize_png(
+            &originating_icon,
+            &format!("{}/{}/ios/{}.app/Assets/ios_icon180.png", session.projects_path.as_ref().unwrap(),
+            session.current_project.as_ref().unwrap(),
+            capitalize_first(session.current_project.as_ref().unwrap())),
+            180,
+            180,
+        )?;
         //TODO update macos icons
+        println!("TODO need to update icons for macos");
         //convert to 1024x1024?
         //remove existing icns?
         //sips -s format format!("{}/{}/assets/resources/icons/icon.png", session.projects_path, session.current_project) --out format!("{}/{}/macos/{}.app/Contents/Resources/macos_icon.icns", session.projects_path, session.current_project, capitalize_first(session.current_project))
-
-        //update ios icons
-        // resize_png(originating_icon, format!("ios/{}.app/Assets/ios_icon120.png", capitalize_first(session.current_project)), 120, 120);
-        // resize_png(originating_icon, format!("ios/{}.app/Assets/ios_icon180.png", capitalize_first(session.current_project)), 180, 180);
     }
     Ok(())
 }
