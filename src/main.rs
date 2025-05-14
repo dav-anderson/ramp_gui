@@ -1643,7 +1643,7 @@ fn update_icons(session: &Session) -> io::Result<()> {
 
     //TODO macos only
     if session.os.as_str() == "macos" {
-        println!("update icons for macos/ios")
+        println!("update icons for macos/ios");
         resize_png(
             &originating_icon,
             &format!("{}/{}/ios/{}.app/Assets/ios_icon120.png", session.projects_path.as_ref().unwrap(),
@@ -1660,11 +1660,14 @@ fn update_icons(session: &Session) -> io::Result<()> {
             180,
             180,
         )?;
-        //TODO update macos icons
-        println!("TODO need to update icons for macos");
-        //convert to 1024x1024?
-        //remove existing icns?
-        //sips -s format format!("{}/{}/assets/resources/icons/icon.png", session.projects_path, session.current_project) --out format!("{}/{}/macos/{}.app/Contents/Resources/macos_icon.icns", session.projects_path, session.current_project, capitalize_first(session.current_project))
+        println!("updating icons for macos");
+        let macos = Command::new("sips").args(["-s", "format", "icns", &originating_icon, "--out", &format!("{}/{}/assets/resources/icons/macos_icon.icns", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap())]).output().unwrap();
+        if !macos.status.success() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not create macos icns: {}",
+            ));
+        }
     }
     Ok(())
 }
@@ -1847,6 +1850,8 @@ fn main() -> io::Result<()> {
 
     //TODOS
 
+    //test that all app icons are properly removed and recreated after an update
+
     //LINUX
     //setup/config key signers
     //BUILD for simulators, deploy simulator, hot load over a usb
@@ -1854,7 +1859,6 @@ fn main() -> io::Result<()> {
 
 
     //MACOS
-    //Update icons for macos/ios
     //fix ubuntu output compatability
     //BUILD for simulators, deploy simulator, hot load over a usb
     //startup for macos
