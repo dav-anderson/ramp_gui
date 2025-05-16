@@ -1810,7 +1810,6 @@ fn install(session: &Session) -> io::Result<()> {
 
     //TODO verify that both zsh and bsh are supported across implementations
 
-    //install all other dependencies needed based on OS (might require homebrew first for macos)
     Ok(())
 }
 
@@ -1849,27 +1848,28 @@ fn main() -> io::Result<()> {
     }
 
     //TODOS
-
     //test that all app icons are properly removed and recreated after an update
+    //release key and dev cert management
+    //deploy to simulators
+
+    //MACOS
+    //fix ubuntu output compatability (see notes in install function)
+    //set up/config key signers
+    //lipo outputs for combined chipset architectures for ios simulator and macos release
 
     //LINUX
+    //refactor all sudo requirements outside of the -installation flag, consider a .deb install script that calls sudo with an -installation flag
     //setup/config key signers
     //BUILD for simulators, deploy simulator, hot load over a usb
 
-
-
-    //MACOS
-    //fix ubuntu output compatability
-    //BUILD for simulators, deploy simulator, hot load over a usb
-    //startup for macos
-    //set up/config key signers
-    //lipo outputs for combined chipset architectures for ios simulator and macos release
 
     //WISHLIST
 
     //gracefully intercept and handle errors where the user's OS is out of date (particularly in the case of MacOS)
 
     //ability to use an existing android sdk/ndk installation
+
+    //more robust version specification for critical components (xcode, ios ndk, jdk, android ndk & sdk, etc etc)
 
     //template version tracking
 
