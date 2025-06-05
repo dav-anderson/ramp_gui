@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Run the installation with sudo and wait for it to complete
+sudo ./appName -installation
+
+# Check if the sudo command was successful
+if [ $? -eq 0 ]; then
+    # Run the application without sudo
+    ./appName
+else
+    echo "Installation failed. Please check the error messages above."
+    exit 1
+fi

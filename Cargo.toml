@@ -1,0 +1,13 @@
+[package]
+name = "ramp_gui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+image = "0.25.1"
+
+[target.x86_64-unknown-linux-gnu]
+linker = "x86_64-unknown-linux-gnu-gcc"
+
+[target.aarch64-apple-darwin]
+linker = "aarch64-apple-darwin24.0.0-clang"
