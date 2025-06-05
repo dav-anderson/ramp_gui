@@ -434,6 +434,17 @@ fn install_homebrew(session: &Session) -> io::Result<()> {
 }
 
 fn install_macos_ios_toolchains(session: &Session) -> io::Result<()> {
+    //verify that the Xcode app is already installed
+    let xcode_app = "/Applications/Xcode.app";
+    if !Path::new(xcode_app).exists() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Xcode is not properly installed via the appstore"));
+    }
+    //point xcode-select to the proper path
+    Command::new("sudo").args([
+        "xcode-select", "-s", "/Applications/Xcode.app/Contents/Developer"
+    ])
+    .status()?;
+
     if session.os.as_str() != "macos"{
         println!("skipping macos & ios toolchain install");
     }else{
@@ -539,9 +550,6 @@ fn install_macos_ios_toolchains(session: &Session) -> io::Result<()> {
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to install Xcode IOS SDK"));
         }
     }
-    //add xcode command line tools to path
-
-
     // Accept Xcode license (requires sudo)
     println!("Accepting Xcode license...");
     let status = Command::new("sudo")
@@ -552,6 +560,10 @@ fn install_macos_ios_toolchains(session: &Session) -> io::Result<()> {
         eprintln!("Failed to accept Xcode license.");
         std::process::exit(1);
     }
+
+    //add xcode command line tools to path
+    let home = get_user_home()?;
+    env::set_var("PATH", "/Library/Developer/CommandLineTools");
 
     Ok(())
 }
@@ -874,27 +886,6 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
                 }),
             )
         },
-        // "macos" => (
-        //     sudo_user = env::var("SUDO_USER").map_err(|_| io::Error::new(ErrorKind::NotFound, "SUDO USER NOT FOUND"))?;
-        //     if cfg!(target_arch = "aarch64") {
-        //         "/opt/homebrew/opt/openjdk@17"
-        //     } else {
-        //         "/usr/local/opt/openjdk@17"
-        //     },
-        //     format!("{}/.zshrc", home),
-        //     "https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip",
-        //     Box::new(|| -> io::Result<()> {
-        //         println!("Installing OpenJDK 17...");
-        //         let install_output = Command::new("su")
-        //             .args(&[&sudo_user, "-c", "install", "openjdk@17"])
-        //             .output()?;
-        //         if !install_output.status.success() {
-        //             println!("brew install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
-        //             return Err(io::Error::new(io::ErrorKind::Other, "Failed to install OpenJDK 17"));
-        //         }
-        //         Ok(())
-        //     }),
-        // ),
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
