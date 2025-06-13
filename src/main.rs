@@ -568,6 +568,12 @@ fn install_macos_ios_toolchains(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
+fn install_simulators(session: &Session) -> io::Result<()>{
+    //run xcrun simctl list devices to initialize
+    println!("setting up simulators");
+    Ok(())
+}
+
 fn is_xcode_tools_installed() -> bool {
     Command::new("xcode-select")
         .arg("-p")
@@ -577,221 +583,6 @@ fn is_xcode_tools_installed() -> bool {
         .map(|status| status.success())
         .unwrap_or(false)
 }
-
-
-//install android dev kits
-// fn install_android_toolchains(session: &Session) -> io::Result<()> {
-//     println!("Setting up Android SDK and NDK for {}", session.os);
-//     let home = env::var("HOME").map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to get HOME: {}", e)))?;
-//     let sdk_root = format!("{}/Android/sdk", home);
-//     let cmdline_tools_dir = format!("{}/cmdline-tools", sdk_root);
-//     let desired_ndk_version = "26.1.10909125";
-//     let sdkmanager = format!("{}/bin/sdkmanager", cmdline_tools_dir);
-//     let platform_tools = format!("{}/platform-tools/adb", sdk_root);
-//     let platform_version = "31"; //API 31 (Android 14)
-//     let platforms_dir = format!("{}/platforms/android-{}", sdk_root, platform_version);
-//     let ndk_path = format!("{}/ndk/{}", sdk_root, desired_ndk_version);
-
-//     // Check for JAVA_HOME and JDK
-//     let java_home = env::var("JAVA_HOME").unwrap_or_default();
-//     let java_ok = Command::new("java")
-//         .arg("-version")
-//         .stdout(Stdio::null())
-//         .stderr(Stdio::null())
-//         .status()
-//         .map(|s| s.success())
-//         .unwrap_or(false);
-//     if !java_ok || java_home.is_empty() {
-//         println!("JDK not found or JAVA_HOME not set. Installing OpenJDK 17...");
-//         println!("java_home: {}", &java_home.to_string());
-//         println!("java_ok: {}", &java_ok.to_string());
-//         let update_output = Command::new("sudo")
-//             .args(&["bash", "-c", "apt update"])
-//             .output()?;
-//         if !update_output.status.success() {
-//             println!("apt update stderr: {}", String::from_utf8_lossy(&update_output.stderr));
-//             return Err(io::Error::new(io::ErrorKind::Other, "Failed to run apt update"));
-//         }
-//         let install_output = Command::new("sudo")
-//             .args(&["bash", "-c", "apt install -y openjdk-17-jdk"])
-//             .output()?;
-//         if !install_output.status.success() {
-//             println!("apt install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
-//             return Err(io::Error::new(io::ErrorKind::Other, "Failed to install OpenJDK 17"));
-//         }
-//         // Set JAVA_HOME for current process
-//         let java_home = "/usr/lib/jvm/java-17-openjdk-amd64";
-//         env::set_var("JAVA_HOME", java_home);
-//         println!("Installed OpenJDK 17 and set JAVA_HOME={}", java_home);
-//     } else {
-//         println!("JDK found with JAVA_HOME={}", java_home);
-//     }
-
-//     // Check for existing SDK/NDK configuration
-//     let sdk_configured = {
-//         let sdkmanager_ok = Path::new(&sdkmanager).exists()
-//             && Command::new(&sdkmanager)
-//                 .args([&format!("--sdk_root={}", &sdk_root),"--version"])
-//                 .stdout(Stdio::null())
-//                 .stderr(Stdio::null())
-//                 .status()
-//                 .map(|s| s.success())
-//                 .unwrap_or(false);
-//         let platform_tools_ok = Path::new(&platform_tools).exists()
-//             && Command::new("adb")
-//                 .arg("--version")
-//                 .stdout(Stdio::null())
-//                 .stderr(Stdio::null())
-//                 .status()
-//                 .map(|s| s.success())
-//                 .unwrap_or(false);
-//         let platforms_ok = Path::new(&platforms_dir).exists();
-//         let ndk_ok = Path::new(&ndk_path).exists();
-//         if !ndk_ok {
-//             let ndk_dir = format!("{}/ndk", sdk_root);
-//             if Path::new(&ndk_dir).exists() {
-//                 let versions = fs::read_dir(&ndk_dir)?
-//                     .filter_map(|entry| entry.ok())
-//                     .filter(|entry| entry.path().is_dir())
-//                     .map(|entry| entry.file_name().into_string().unwrap_or_default())
-//                     .collect::<Vec<_>>();
-//                 println!("Available NDK versions: {:?}", versions);
-//             }
-//         }
-//         println!(
-//             "SDK checks: sdkmanager={} ({}), platform_tools={} ({}), platforms={} ({}) ndk={} ({})",
-//             sdkmanager_ok, sdkmanager,
-//             platform_tools_ok, platform_tools,
-//             platforms_ok, platforms_dir,
-//             ndk_ok, ndk_path
-//         );
-//         sdkmanager_ok && platform_tools_ok && platforms_ok && ndk_ok
-//     };
-
-//     if sdk_configured {
-//         println!("Existing Android SDK and NDK found at {}. Skipping installation.", sdk_root);
-//     } else {
-//         // Proceed with installation if not configured
-//         // Download and install command-line tools
-//         println!("Installing Android command-line tools...");
-//         let sdk_url = "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip";
-//         let download_path = format!("{}/cmdline-tools.zip", home);
-//         Command::new("curl")
-//             .args(&["-o", &download_path, sdk_url])
-//             .status()?;
-//         Command::new("mkdir")
-//             .args(&["-p", &sdk_root])
-//             .status()?;
-//         Command::new("unzip")
-//             .args(&["-o", &download_path, "-d", &sdk_root])
-//             .status()?;
-//         Command::new("rm")
-//             .arg(&download_path)
-//             .status()?;
-//         // Accept licenses
-//         println!("Accepting Android SDK licenses...");
-//         let mut license_cmd = Command::new("yes")
-//             .stdout(Stdio::piped())
-//             .spawn()?;
-//         let license_output = Command::new(&sdkmanager)
-//             .args(["--licenses", &format!("--sdk_root={}", &sdk_root)])
-//             .stdin(license_cmd.stdout.take().unwrap())
-//             .output()?;
-//         license_cmd.wait()?;
-//         if !license_output.status.success() {
-//             println!("License acceptance stderr: {}", String::from_utf8_lossy(&license_output.stderr));
-//             return Err(io::Error::new(io::ErrorKind::Other, "Failed to accept Android SDK licenses"));
-//         }
-//         // Install SDK and NDK packages
-//         let ndk_package = format!("ndk;{}", desired_ndk_version);
-//         let platform_package = format!("platforms;android-{}", platform_version);
-//         let packages = vec!["platform-tools", "build-tools;34.0.0", &platform_package, &ndk_package];
-//         for package in packages {
-//             println!("Installing {}...", package);
-//             let install_output = Command::new(&sdkmanager)
-//                 .args(&[package, &format!("--sdk_root={}", &sdk_root)])
-//                 .output()?;
-//             if !install_output.status.success() {
-//                 println!("Install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
-//                 return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to install {}", package)));
-//             }
-//         }
-//         println!("Android SDK and NDK installed.");
-//     }
-
-//     // Set environment variables for current process
-//     env::set_var("JAVA_HOME", "/usr/lib/jvm/java-17-openjdk-amd64");
-//     env::set_var("ANDROID_HOME", &sdk_root);
-//     env::set_var("NDK_HOME", &ndk_path);
-//     let current_path = env::var("PATH").unwrap_or_default();
-//     let new_path = format!(
-//         "{}:{}/platform-tools:{}", // Removed ndk from PATH as NDK_HOME is used
-//         current_path, sdk_root, &ndk_path
-//     );
-//     env::set_var("PATH", &new_path);
-//     println!("Set environment for current session: JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64, ANDROID_HOME={}, NDK_HOME={}, PATH={}", sdk_root, &ndk_path, new_path);
-
-//     // Persist environment variables in .bashrc
-//     let bashrc_path = format!("{}/.bashrc", home);
-//     let env_entries = format!(
-//         "\nexport JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64\nexport ANDROID_HOME={}\nexport NDK_HOME={}\nexport PATH=$PATH:{}/platform-tools:{}\n",
-//         sdk_root, &ndk_path, sdk_root, &ndk_path
-//     );
-//     let mut bashrc_content = if Path::new(&bashrc_path).exists() {
-//         fs::read_to_string(&bashrc_path)?
-//     } else {
-//         String::new()
-//     };
-//     if !bashrc_content.contains(&env_entries) {
-//         let mut bashrc_file = fs::OpenOptions::new()
-//             .write(true)
-//             .append(true)
-//             .create(true)
-//             .open(&bashrc_path)?;
-//         bashrc_file.write_all(env_entries.as_bytes())?;
-//         println!("Added JAVA_HOME, ANDROID_HOME, NDK_HOME, and PATH to {}", bashrc_path);
-//     } else {
-//         println!("Environment variables already in {}", bashrc_path);
-//     }
-
-//         // Check if cargo-apk is already installed
-//         let cargo_apk_ok = Command::new("cargo")
-//         .args(&["apk", "--version"])
-//         .stdout(Stdio::null())
-//         .stderr(Stdio::null())
-//         .status()
-//         .map(|s| s.success())
-//         .unwrap_or(false);
-//     if cargo_apk_ok {
-//         println!("cargo-apk is already installed. Skipping installation.");
-//     } else {
-//         // Ensure Android SDK/NDK and JAVA_HOME are set
-//         let android_home = env::var("ANDROID_HOME").unwrap_or_default();
-//         let ndk_home = env::var("NDK_HOME").unwrap_or_default();
-//         let java_home = env::var("JAVA_HOME").unwrap_or_default();
-//         if android_home.is_empty() || ndk_home.is_empty() || java_home.is_empty() {
-//             return Err(io::Error::new(
-//                 io::ErrorKind::NotFound,
-//                 "ANDROID_HOME, NDK_HOME, or JAVA_HOME not set. Please run install_android_sdk_and_ndk first.",
-//             ));
-//         }
-
-//         // Install cargo-apk
-//         println!("Installing cargo-apk...");
-//         let install_output = Command::new("cargo")
-//             .args(&["install", "cargo-apk"])
-//             .stdout(Stdio::inherit())
-//             .stderr(Stdio::inherit())
-//             .output()?;
-//         if !install_output.status.success() {
-//             println!("cargo install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
-//             return Err(io::Error::new(io::ErrorKind::Other, "Failed to install cargo-apk"));
-//         }
-//         println!("cargo-apk installed successfully.");
-//     }
-
-//     Ok(())
-// }
 
 fn get_user_home() -> io::Result<String> {
     // Try SUDO_USER first to get the invoking user's home directory
@@ -819,13 +610,20 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
 
     // Check for JAVA_HOME and JDK
     let java_home = env::var("JAVA_HOME").unwrap_or_default();
-    let java_ok = Command::new("java")
+    println!("Java home: {}", java_home.to_string());
+    let java_path = "/opt/homebrew/opt/openjdk@17/bin/java";
+    println!("Java path: {}", java_path);
+    let java_ok = match Command::new(&java_path)
         .arg("-version")
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
+        .stderr(Stdio::piped())
+        .output() {
+            Ok(output) => String::from_utf8_lossy(&output.stderr)
+                .to_lowercase()
+                .contains("openjdk"),
+            Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "failed to query java version")),
+        };
+ 
 
     // OS-specific configuration
     let (java_home, shell_config, sdk_url, install_jdk): (
@@ -909,16 +707,10 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
 
     // Check for existing SDK/NDK configuration
     let sdk_configured = {
-        let sdkmanager_ok = Path::new(&sdkmanager).exists()
-            && Command::new(&sdkmanager)
-                .args([&format!("--sdk_root={}", &sdk_root), "--version"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
+
+        let sdkmanager_ok = Path::new(&sdkmanager).exists();
         let platform_tools_ok = Path::new(&platform_tools).exists()
-            && Command::new("adb")
+            && Command::new(&platform_tools)
                 .arg("--version")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
@@ -1033,8 +825,9 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
     }
 
     // Install cargo-apk
-    let cargo_apk_ok = Command::new("cargo")
-        .args(&["apk", "--version"])
+    let cargo_home = format!("{}/.cargo/bin/cargo-apk", home);
+    let cargo_apk_ok = Command::new(&cargo_home)
+        .args(&["apk", "version"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -1806,6 +1599,9 @@ fn install(session: &Session) -> io::Result<()> {
     //install android toolchains
     install_android_toolchains(&session)?;
 
+    //TODO install and configure simulators
+    install_simulators(&session)?;
+
     //update xcode if xcode-install available
     //xcversion install --latest
 
@@ -1859,6 +1655,12 @@ fn main() -> io::Result<()> {
     }
 
     //TODOS
+
+    //ADD A /Users/$USER/.ramp global config to set the paths for all binaries required for ramp
+    //Remove all .zshrc configurations
+    //use full paths for all binary command executions
+
+
     //test that all app icons are properly removed and recreated after an update
     //release key and dev cert management
     //deploy to simulators
