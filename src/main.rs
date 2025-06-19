@@ -7,32 +7,70 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::fs::OpenOptions;
 use std::path::PathBuf;
+use std::io::BufReader;
+use std::io::BufRead;
+
+struct Paths {
+    sdk_path: Option<String>,
+    ndk_path: Option<String>,
+    cargo_path: Option<String>,
+    cargo_apk_path: Option<String>,
+    rustup_path: Option<String>,
+    homebrew_path: Option<String>,
+    cmdline_tools_path: Option<String>,
+    sdkmanager_path: Option<String>,
+    platform_tools_path: Option<String>,
+    platforms_path: Option<String>,
+    ndk_bundle_path: Option<String>,
+    java_path: Option<String>,
+}
 
 struct Session {
     os: String,
+    home: String,
     projects_path: Option<String>,
     current_project: Option<String>,
+    paths: Paths,
+    android_ndk_version: String,
+    android_platform_version: String,
 }
 
 impl Session {
     fn new() -> io::Result<Self> {
         let os = env::consts::OS.to_string();
+        let home = get_user_home()?;
         let projects_path = match os.as_str() {
             "linux" => {
-                let home = get_user_home()?;
                 Some(format!("{}/ramp", home))
             }
             "macos" => {
-                let home = get_user_home()?;
                 Some(format!("{}/ramp", home))
             },
             //unsupported OS
             _ => None,
         };
+        let paths = Paths {
+            sdk_path: None,
+            ndk_path: None,
+            cargo_path: None,
+            cargo_apk_path: None,
+            rustup_path: None,
+            homebrew_path: None,
+            cmdline_tools_path: None,
+            sdkmanager_path: None,
+            platform_tools_path: None,
+            platforms_path: None,
+            ndk_bundle_path: None,
+            java_path: None,
+        };
         Ok(Session {
             os,
+            home,
             projects_path,
             current_project: None,
+            paths,
+            android_ndk_version: "26.1.10909125".to_string(),
+            android_platform_version: "31".to_string(),
         })
     }
 
@@ -60,6 +98,108 @@ impl Session {
             ));
         }
     }
+
+// Method to update a path in the Paths struct and .config file
+fn set_path(&mut self, path_name: &str, file_path: String) -> io::Result<()> {
+    // Update the Paths struct
+    match path_name {
+        "sdk_path" => self.paths.sdk_path = Some(file_path.clone()),
+        "ndk_path" => self.paths.ndk_path = Some(file_path.clone()),
+        "cargo_path" => self.paths.cargo_path = Some(file_path.clone()),
+        "cargo_apk_path" => self.paths.cargo_apk_path = Some(file_path.clone()),
+        "rustup_path" => self.paths.rustup_path = Some(file_path.clone()),
+        "homebrew_path" => self.paths.homebrew_path = Some(file_path.clone()),
+        "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(file_path.clone()),
+        "sdkmanager_path" => self.paths.sdkmanager_path = Some(file_path.clone()),
+        "platform_tools_path" => self.paths.platform_tools_path = Some(file_path.clone()),
+        "platforms_path" => self.paths.platforms_path = Some(file_path.clone()),
+        "ndk_bundle_path" => self.paths.ndk_bundle_path = Some(file_path.clone()),
+        "java_path" => self.paths.java_path = Some(file_path.clone()),
+        _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, "Unknown path name")),
+    }
+
+    // Read existing config file
+    let config_path = format!("{}/.config", self.home);
+    let mut config_lines = Vec::new();
+    let mut found = false;
+
+    if Path::new(&config_path).exists() {
+        let file = File::open(&config_path)?;
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let line = line?;
+            if line.starts_with(&format!("{}=", path_name)) {
+                config_lines.push(format!("{}={}", path_name, file_path));
+                found = true;
+            } else {
+                config_lines.push(line);
+            }
+        }
+    }
+
+    // If the path wasn't found, append it
+    if !found {
+        config_lines.push(format!("{}={}", path_name, file_path));
+    }
+
+    // Write updated config back to file
+    let mut file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&config_path)?;
+    for line in config_lines {
+        writeln!(file, "{}", line)?;
+    }
+
+    Ok(())
+}
+
+// Method to read .config and update Paths struct
+fn get_paths(&mut self) -> io::Result<()> {
+    let config_path = format!("{}/.config", self.home);
+
+    if !Path::new(&config_path).exists() {
+        return Ok(()); // No config file yet, keep default paths
+    }
+
+    let file = File::open(&config_path)?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line?;
+        if let Some((key, value)) = line.split_once('=') {
+            match key.trim() {
+                "sdk_path" => self.paths.sdk_path = Some(value.trim().to_string()),
+                "ndk_path" => self.paths.ndk_path = Some(value.trim().to_string()),
+                "cargo_path" => self.paths.cargo_path = Some(value.trim().to_string()),
+                "cargo_apk_path" => self.paths.cargo_apk_path = Some(value.trim().to_string()),
+                "rustup_path" => self.paths.rustup_path = Some(value.trim().to_string()),
+                "homebrew_path" => self.paths.homebrew_path = Some(value.trim().to_string()),
+                "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(value.trim().to_string()),
+                "sdkmanager_path" => self.paths.sdkmanager_path = Some(value.trim().to_string()),
+                "platform_tools_path" => self.paths.platform_tools_path = Some(value.trim().to_string()),
+                "platforms_path" => self.paths.platforms_path = Some(value.trim().to_string()),
+                "ndk_bundle_path" => self.paths.ndk_bundle_path = Some(value.trim().to_string()),
+                "java_path" => self.paths.java_path = Some(value.trim().to_string()),
+                _ => (), // Ignore unknown keys
+            }
+        }
+    }
+
+    Ok(())
+}
+}
+
+//function to create the .ramp config file
+fn create_ramp_config(session: &Session) -> io::Result<()> {
+    let config_path = format!("{}/.ramp", session.home);
+
+    //create the file if it doesn't exist
+    if !Path::new(&config_path).exists(){
+        File::create(&config_path)?;
+    }
+
+    Ok(())
 }
 
 // Function to check if a command is available in the system
@@ -85,7 +225,6 @@ fn is_command_available(cmd: &str) -> bool {
 // Function to install rustup
 fn install_rustup(session: &Session) -> io::Result<()> {
     println!("Detected OS: {}", session.os);
-    let home = get_user_home()?;
     match session.os.as_str() {
         "linux" => {
             let mut attempts = 0;
@@ -167,9 +306,11 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                     "Failed to install rustup",
                 ));
             }
-            // Update PATH for the current session
-            let current_path = env::var("PATH").unwrap_or_default();
-            env::set_var("PATH", format!("{}/.cargo/bin:{}", home, current_path));
+            // Update PATH in the ramp config
+            let cargo_path = format!("{}/.cargo/bin/cargo", session.home);
+            session.set_path("cargo_path", cargo_path)?;
+            let rustup_path = format!("{}/.cargo/bin/rustup", session.home);
+            session.set_path("rustup_path", rustup_path)?;
         }
         "macos" => {
             println!("Downloading and installing rustup...");
@@ -185,33 +326,16 @@ fn install_rustup(session: &Session) -> io::Result<()> {
                 ));
             }
             let sudo_user = env::var("SUDO_USER").unwrap().to_string();
-            let permissions = Command::new("sudo").args(["chown", "-R", &sudo_user, &format!("{}/.cargo", &home)]).output()?;
+            let permissions = Command::new("sudo").args(["chown", "-R", &sudo_user, &format!("{}/.cargo", session.home)]).output()?;
             if !permissions.status.success(){
                 return Err(io::Error::new(io::ErrorKind::Other, "Failed to enable permissions for .cargo directory"));
             }
-            // Update PATH for the current session
-            let current_path = env::var("PATH").unwrap_or_default();
-            env::set_var("PATH", format!("{}/.cargo/bin:{}", home, current_path));
-            // Persist cargo PATH in .bashrc
-            let cargo_bin = format!("{}/.cargo/bin", home);
-            let bashrc_path = format!("{}/.zshrc", home);
-            let path_entry = format!("\nexport PATH=$PATH:{}\n", cargo_bin);
-            let mut bashrc_content = if Path::new(&bashrc_path).exists() {
-                fs::read_to_string(&bashrc_path)?
-            } else {
-                String::new()
-            };
-            if !bashrc_content.contains(&path_entry) {
-                let mut bashrc_file = fs::OpenOptions::new()
-                    .write(true)
-                    .append(true)
-                    .create(true)
-                    .open(&bashrc_path)?;
-                bashrc_file.write_all(path_entry.as_bytes())?;
-                println!("Added cargo bin PATH to {}", bashrc_path);
-            } else {
-                println!("cargo bin PATH already in {}", bashrc_path);
-            }
+            // Update PATH in the ramp config
+            // Update PATH in the ramp config
+            let cargo_path = format!("{}/.cargo/bin/cargo", session.home);
+            session.set_path("cargo_path", cargo_path)?;
+            let rustup_path = format!("{}/.cargo/bin/rustup", session.home);
+            session.set_path("rustup_path", rustup_path)?;
         }
         _ => {
             return Err(io::Error::new(
@@ -226,8 +350,8 @@ fn install_rustup(session: &Session) -> io::Result<()> {
 }
 
 // Function to ensure full Rust toolchain is installed via rustup
-fn install_rust_toolchain() -> io::Result<()> {
-    let status = Command::new("rustup")
+fn install_rust_toolchain(session: &Session) -> io::Result<()> {
+    let status = Command::new(&session.paths.rustup_path)
         .args(&["toolchain", "install", "stable"])
         .status()?;
 
@@ -264,7 +388,7 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
     ];
 
     //get list of current installations
-    let output = Command::new("rustup")
+    let output = Command::new(&session.paths.rustup_path)
         .args(&["target", "list", "--installed"])
         .output()?;
 
@@ -281,7 +405,7 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
     for target in targets {
         if !installed.contains(&target) {
             println!("Build target {} not found. Installing...", target);
-            let status = Command::new("rustup")
+            let status = Command::new(&session.paths.rustup_path)
                 .args(&["target", "add", &target])
                 .status()?;
 
@@ -301,7 +425,7 @@ fn install_build_targets(session: &Session) -> io::Result<()> {
         for target in mac_targets {
             if !installed.contains(&target) {
                 println!("Build target {} not found. Installing...", target);
-                let status = Command::new("rustup")
+                let status = Command::new(&session.paths.rustup_path)
                     .args(&["target", "add", &target])
                     .status()?;
 
@@ -326,7 +450,6 @@ fn install_homebrew(session: &Session) -> io::Result<()> {
         println!("skipping homebrew, not mac");
         return Ok(())
     }
-    let home = get_user_home()?;
     let brew_dir = if cfg!(target_arch = "aarch64"){
         "/opt/homebrew"
     }else{
@@ -404,31 +527,8 @@ fn install_homebrew(session: &Session) -> io::Result<()> {
     if !permissions.status.success(){
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to enable permissions for Homebrew installation directory"));
     }
-    // Set PATH for current session
-    let current_path = env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}", current_path, brew_bin);
-    env::set_var("PATH", &new_path);
-    println!("Set PATH for current session: {}", new_path);
-
-    // Persist PATH in ~/.zshrc
-    let zshrc_path = format!("{}/.zshrc", home);
-    let path_entry = format!("\nexport PATH=$PATH:{}\n", brew_bin);
-    let mut zshrc_content = if Path::new(&zshrc_path).exists() {
-        fs::read_to_string(&zshrc_path)?
-    } else {
-        String::new()
-    };
-    if !zshrc_content.contains(&path_entry) {
-        let mut zshrc_file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(&zshrc_path)?;
-        zshrc_file.write_all(path_entry.as_bytes())?;
-        println!("Added Homebrew PATH to {}", zshrc_path);
-    } else {
-        println!("Homebrew PATH already in {}", zshrc_path);
-    }
+    // Set PATH for homebrew in config file
+    session.set_path("homebrew_path", &format!("{}/brew", brew_bin))?;
 
     Ok(())
 }
@@ -450,15 +550,9 @@ fn install_macos_ios_toolchains(session: &Session) -> io::Result<()> {
     }else{
         println!("installing ios and macos toolchains");
     }
-    // Determine Homebrew path based on architecture
-    let brew_path = if cfg!(target_arch = "aarch64") {
-        "/opt/homebrew/bin"
-    } else {
-        "/usr/local/bin"
-    };
 
     // Check if Homebrew is installed
-    let brew_ok = Command::new("brew")
+    let brew_ok = Command::new(session.paths.homebrew_path)
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -561,10 +655,6 @@ fn install_macos_ios_toolchains(session: &Session) -> io::Result<()> {
         std::process::exit(1);
     }
 
-    //add xcode command line tools to path
-    let home = get_user_home()?;
-    env::set_var("PATH", "/Library/Developer/CommandLineTools");
-
     Ok(())
 }
 
@@ -597,23 +687,18 @@ fn get_user_home() -> io::Result<String> {
 
 fn install_android_toolchains(session: &Session) -> io::Result<()> {
     println!("Setting up Android SDK and NDK for {}", session.os);
-    let home = get_user_home()?;
-    let sdk_root = format!("{}/Android/sdk", home);
-    let cmdline_tools_dir = format!("{}/cmdline-tools", sdk_root);
-    let desired_ndk_version = "26.1.10909125";
-    let platform_version = "31"; // API 31 (Android 12)
-    let sdkmanager = format!("{}/bin/sdkmanager", cmdline_tools_dir);
-    let platform_tools = format!("{}/platform-tools/adb", sdk_root);
-    let platforms_dir = format!("{}/platforms/android-{}", sdk_root, platform_version);
-    let ndk_path = format!("{}/ndk/{}", sdk_root, desired_ndk_version);
-    let ndk_bundle = format!("{}/ndk-bundle", sdk_root);
+    session.set_path("sdk_path", format!("{}/Android/sdk", session.home))?;
+    session.set_path("cmdline_tools_path", format!("{}/cmdline-tools", session.paths.sdk_path))?;
+    session.set_path("sdkmanager_path", format!("{}/bin/sdkmanager", session.paths.cmdline_tools_path))?;
+    session.set_path("platform_tools_path", format!("{}/platform-tools/adb", session.paths.sdk_path))?;
+    session.set_path("platforms_path", format!("{}/platforms/android-{}", session.paths.sdk_path, session.android_platform_version))?;
+    session.set_path("ndk_path", format!("{}/ndk/{}", session.paths.sdk_path, session.android_ndk_version))?;
+    session.set_path("ndk_bundle_path", format!("{}/ndk-bundle", session.paths.sdk_path))?;
 
-    // Check for JAVA_HOME and JDK
-    let java_home = env::var("JAVA_HOME").unwrap_or_default();
-    println!("Java home: {}", java_home.to_string());
-    let java_path = "/opt/homebrew/opt/openjdk@17/bin/java";
-    println!("Java path: {}", java_path);
-    let java_ok = match Command::new(&java_path)
+    // Check for JDK
+    session.set_path("java_path", "/opt/homebrew/opt/openjdk@17/bin/java")?;
+    println!("Java path: {}", session.paths.java_path);
+    let java_ok = match Command::new(&session.paths.java_path)
         .arg("-version")
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -632,29 +717,33 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
         &str,
         Box<dyn Fn() -> io::Result<()>>,
     ) = match session.os.as_str() {
-        "linux" => (
-            "/usr/lib/jvm/java-17-openjdk-amd64",
-            format!("{}/.bashrc", home),
-            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip",
-            Box::new(|| -> io::Result<()> {
-                println!("Installing OpenJDK 17...");
-                let update_output = Command::new("sudo")
-                    .args(&["bash", "-c", "apt update"])
-                    .output()?;
-                if !update_output.status.success() {
-                    println!("apt update stderr: {}", String::from_utf8_lossy(&update_output.stderr));
-                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to run apt update"));
-                }
-                let install_output = Command::new("sudo")
-                    .args(&["bash", "-c", "apt install -y openjdk-17-jdk"])
-                    .output()?;
-                if !install_output.status.success() {
-                    println!("apt install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
-                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to install OpenJDK 17"));
-                }
-                Ok(())
-            }),
-        ),
+        "linux" => {
+            let java_home = session.paths.java_path;
+            println!("Java home: {}", java_home.to_string());
+            (
+                "/usr/lib/jvm/java-17-openjdk-amd64",
+                format!("{}/.bashrc", session.home),
+                "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip",
+                Box::new(|| -> io::Result<()> {
+                    println!("Installing OpenJDK 17...");
+                    let update_output = Command::new("sudo")
+                        .args(&["bash", "-c", "apt update"])
+                        .output()?;
+                    if !update_output.status.success() {
+                        println!("apt update stderr: {}", String::from_utf8_lossy(&update_output.stderr));
+                        return Err(io::Error::new(io::ErrorKind::Other, "Failed to run apt update"));
+                    }
+                    let install_output = Command::new("sudo")
+                        .args(&["bash", "-c", "apt install -y openjdk-17-jdk"])
+                        .output()?;
+                    if !install_output.status.success() {
+                        println!("apt install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
+                        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install OpenJDK 17"));
+                    }
+                    Ok(())
+                }),
+            )
+        },
         "macos" => {
             let sudo_user = env::var("SUDO_USER").map_err(|_| io::Error::new(io::ErrorKind::NotFound, "SUDO USER NOT FOUND"))?;
             let java_home = if cfg!(target_arch = "aarch64") {
@@ -664,7 +753,7 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
             };
             (
                 java_home,
-                format!("{}/.zshrc", home),
+                format!("{}/.zshrc", session.home),
                 "https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip",
                 Box::new(move || -> io::Result<()> {
                     println!("Installing OpenJDK 17...");
@@ -699,7 +788,6 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
             java_home, java_ok
         );
         install_jdk()?;
-        env::set_var("JAVA_HOME", java_home);
         println!("Installed OpenJDK 17 and set JAVA_HOME={}", java_home);
     } else {
         println!("JDK found with JAVA_HOME={}", java_home);
@@ -708,19 +796,19 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
     // Check for existing SDK/NDK configuration
     let sdk_configured = {
 
-        let sdkmanager_ok = Path::new(&sdkmanager).exists();
-        let platform_tools_ok = Path::new(&platform_tools).exists()
-            && Command::new(&platform_tools)
+        let sdkmanager_ok = Path::new(&session.paths.sdkmanager_path).exists();
+        let platform_tools_ok = Path::new(&session.paths.platform_tools_path).exists()
+            && Command::new(&session.paths.platform_tools_path)
                 .arg("--version")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .status()
                 .map(|s| s.success())
                 .unwrap_or(false);
-        let platforms_ok = Path::new(&platforms_dir).exists();
-        let ndk_ok = Path::new(&ndk_path).exists() || Path::new(&ndk_bundle).exists();
+        let platforms_ok = Path::new(&session.paths.platforms_path).exists();
+        let ndk_ok = Path::new(&session.paths.ndk_path).exists() || Path::new(&session.paths.ndk_bundle_path).exists();
         if !ndk_ok {
-            let ndk_dir = format!("{}/ndk", sdk_root);
+            let ndk_dir = format!("{}/ndk", session.paths.sdk_path);
             if Path::new(&ndk_dir).exists() {
                 let versions = fs::read_dir(&ndk_dir)?
                     .filter_map(|entry| entry.ok())
@@ -732,10 +820,10 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
         }
         println!(
             "SDK checks: sdkmanager={} ({}), platform_tools={} ({}), platforms={} ({}), ndk={} ({})",
-            sdkmanager_ok, sdkmanager,
-            platform_tools_ok, platform_tools,
-            platforms_ok, platforms_dir,
-            ndk_ok, ndk_path
+            sdkmanager_ok, session.paths.sdkmanager_path,
+            platform_tools_ok, session.paths.platform_tools_path,
+            platforms_ok, session.paths.platforms_path,
+            ndk_ok, session.paths.ndk_path
         );
         sdkmanager_ok && platform_tools_ok && platforms_ok && ndk_ok
     };
@@ -743,15 +831,15 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
     if !sdk_configured {
         // Download and install command-line tools
         println!("Installing Android command-line tools...");
-        let download_path = format!("{}/cmdline-tools.zip", home);
+        let download_path = format!("{}/cmdline-tools.zip", session.home);
         Command::new("curl")
             .args(&["-o", &download_path, sdk_url])
             .status()?;
         Command::new("mkdir")
-            .args(&["-p", &sdk_root])
+            .args(&["-p", &session.paths.sdk_path])
             .status()?;
         Command::new("unzip")
-            .args(&["-o", &download_path, "-d", &sdk_root])
+            .args(&["-o", &download_path, "-d", &session.paths.sdk_path])
             .status()?;
         Command::new("rm")
             .arg(&download_path)
@@ -761,8 +849,8 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
         let mut license_cmd = Command::new("yes")
             .stdout(Stdio::piped())
             .spawn()?;
-        let license_output = Command::new(&sdkmanager)
-            .args(["--licenses", &format!("--sdk_root={}", &sdk_root)])
+        let license_output = Command::new(&session.paths.sdkmanager_path)
+            .args(["--licenses", &format!("--sdk_root={}", &session.paths.sdk_path)])
             .stdin(license_cmd.stdout.take().unwrap())
             .output()?;
         license_cmd.wait()?;
@@ -771,13 +859,13 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to accept Android SDK licenses"));
         }
         // Install SDK and NDK packages
-        let ndk_package = format!("ndk;{}", desired_ndk_version);
-        let platform_package = format!("platforms;android-{}", platform_version);
+        let ndk_package = format!("ndk;{}", session.android_ndk_version);
+        let platform_package = format!("platforms;android-{}", session.android_platform_version);
         let packages = vec!["platform-tools", "build-tools;34.0.0", &platform_package, &ndk_package];
         for package in packages {
             println!("Installing {}...", package);
-            let install_output = Command::new(&sdkmanager)
-                .args(&[package, &format!("--sdk_root={}", &sdk_root)])
+            let install_output = Command::new(&session.paths.sdkmanager_path)
+                .args(&[package, &format!("--sdk_root={}", &session.paths.sdk_path)])
                 .output()?;
             if !install_output.status.success() {
                 println!("Install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
@@ -786,26 +874,29 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
         }
         println!("Android SDK and NDK installed.");
     } else {
-        println!("Existing Android SDK and NDK found at {}. Skipping installation.", sdk_root);
+        println!("Existing Android SDK and NDK found at {}. Skipping installation.", session.paths.sdk_path);
     }
 
     // Set environment variables for current process
-    env::set_var("JAVA_HOME", java_home);
-    env::set_var("ANDROID_HOME", &sdk_root);
-    let ndk_home = if Path::new(&ndk_path).exists() { &ndk_path } else { &ndk_bundle };
+    //TODO can we remove this safely without breaking android dependencies?
+    env::set_var("ANDROID_HOME", &session.paths.sdk_path);
+    let ndk_home = if Path::new(&session.paths.ndk_path).exists() { &session.paths.ndk_path } else { &session.paths.ndk_bundle_path };
+    //TODO can we remove this safely without breaking android dependencies?
     env::set_var("NDK_HOME", ndk_home);
     let current_path = env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}/platform-tools:{}", current_path, sdk_root, ndk_home);
+    let new_path = format!("{}:{}/platform-tools:{}", current_path, session.paths.sdk_path, ndk_home);
+    //TODO can we remove this safely without breaking android dependencies?
     env::set_var("PATH", &new_path);
     println!(
         "Set environment for current session: JAVA_HOME={}, ANDROID_HOME={}, NDK_HOME={}, PATH={}",
-        java_home, sdk_root, ndk_home, new_path
+        java_home, session.paths.sdk_path, ndk_home, new_path
     );
 
     // Persist environment variables in shell config
+    //TODO can we remove this safely without breaking android dependencies?
     let env_entries = format!(
         "\nexport JAVA_HOME={}\nexport ANDROID_HOME={}\nexport NDK_HOME={}\nexport PATH=$PATH:{}/platform-tools:{}\n",
-        java_home, sdk_root, ndk_home, sdk_root, ndk_home
+        java_home, session.paths.sdk_path, ndk_home, session.paths.sdk_path, ndk_home
     );
     let mut shell_content = if Path::new(&shell_config).exists() {
         fs::read_to_string(&shell_config)?
@@ -825,8 +916,8 @@ fn install_android_toolchains(session: &Session) -> io::Result<()> {
     }
 
     // Install cargo-apk
-    let cargo_home = format!("{}/.cargo/bin/cargo-apk", home);
-    let cargo_apk_ok = Command::new(&cargo_home)
+    session.set_path("cargo_apk_path", format!("{}/.cargo/bin/cargo-apk", session.home))?;
+    let cargo_apk_ok = Command::new(&session.paths.cargo_apk_path)
         .args(&["apk", "version"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -1532,7 +1623,7 @@ fn build_output(session: &Session, target_os: String, release: bool) -> io::Resu
     // Execute cargo build
     let output = Command::new("bash")
         .arg("-c")
-        .arg(format!("cargo {}", cargo_args))
+        .arg(format!("{} {}", session.paths.cargo_path, cargo_args))
         .current_dir(project_dir) // Set working directory
         .stdout(Stdio::inherit()) // Show build output
         .stderr(Stdio::inherit())
@@ -1557,6 +1648,9 @@ fn build_output(session: &Session, target_os: String, release: bool) -> io::Resu
 //initialization function upon starting the app
 //WARNING install must only be run with sudo privleges
 fn install(session: &Session) -> io::Result<()> {
+    //create ramp config
+    create_ramp_config(&session)?;
+
     //check network connectivity
     println!("Checking for network connectivity...");
     //ping linux servers once to check for connectivity
@@ -1581,7 +1675,7 @@ fn install(session: &Session) -> io::Result<()> {
     }
 
     // Check if cargo is installed
-    if !is_command_available("cargo") {
+    if !is_command_available(session.paths.cargo_path) {
         println!("cargo not found. Running rustup to ensure full toolchain...");
         install_rust_toolchain()?;
     } else {
@@ -1623,6 +1717,7 @@ fn install(session: &Session) -> io::Result<()> {
 fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
+    session.get_paths()?;
 
     // Collect all command-line arguments into a Vec<String>
     let args: Vec<String> = env::args().collect();
