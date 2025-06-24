@@ -937,45 +937,6 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
     } else {
         println!("Existing Android SDK and NDK found at {}. Skipping installation.", session.get_path("sdk_path")?);
     }
-
-    // // Set environment variables for current process
-    // //TODO can we remove this safely without breaking android dependencies?
-    // env::set_var("ANDROID_HOME", &session.get_path("sdk_path")?);
-    // let ndk_home = if Path::new(&session.get_path("ndk_path")?).exists() { &session.get_path("ndk_path")? } else { &session.get_path("ndk_bundle_path")? };
-    // //TODO can we remove this safely without breaking android dependencies?
-    // env::set_var("NDK_HOME", ndk_home);
-    // let current_path = env::var("PATH").unwrap_or_default();
-    // let new_path = format!("{}:{}/platform-tools:{}", current_path, session.get_path("sdk_path")?, ndk_home);
-    // //TODO can we remove this safely without breaking android dependencies?
-    // env::set_var("PATH", &new_path);
-    // println!(
-    //     "Set environment for current session: JAVA_HOME={}, ANDROID_HOME={}, NDK_HOME={}, PATH={}",
-    //     java_home, session.get_path("sdk_path")?, ndk_home, new_path
-    // );
-
-    // // Persist environment variables in shell config
-    // //TODO can we remove this safely without breaking android dependencies?
-    // let env_entries = format!(
-    //     "\nexport JAVA_HOME={}\nexport ANDROID_HOME={}\nexport NDK_HOME={}\nexport PATH=$PATH:{}/platform-tools:{}\n",
-    //     java_home, session.get_path("sdk_path")?, ndk_home, session.get_path("sdk_path")?, ndk_home
-    // );
-    // let mut shell_content = if Path::new(&shell_config).exists() {
-    //     fs::read_to_string(&shell_config)?
-    // } else {
-    //     String::new()
-    // };
-    // if !shell_content.contains(&env_entries) {
-    //     let mut shell_file = OpenOptions::new()
-    //         .write(true)
-    //         .append(true)
-    //         .create(true)
-    //         .open(&shell_config)?;
-    //     shell_file.write_all(env_entries.as_bytes())?;
-    //     println!("Added JAVA_HOME, ANDROID_HOME, NDK_HOME, and PATH to {}", shell_config);
-    // } else {
-    //     println!("Environment variables already in {}", shell_config);
-    // }
-
     // Install cargo-apk
     session.set_path("cargo_apk_path", format!("{}/.cargo/bin/cargo-apk", session.home))?;
     let cargo_apk_ok = Command::new(&session.get_path("cargo_apk_path")?)
@@ -988,17 +949,6 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
     if cargo_apk_ok {
         println!("cargo-apk is already installed. Skipping installation.");
     } else {
-        //TODO can we remove this without breaking everything?
-        // Ensure Android SDK/NDK and JAVA_HOME are set
-        // let android_home = env::var("ANDROID_HOME").unwrap_or_default();
-        // let ndk_home = env::var("NDK_HOME").unwrap_or_default();
-        // let java_home = env::var("JAVA_HOME").unwrap_or_default();
-        // if android_home.is_empty() || ndk_home.is_empty() || java_home.is_empty() {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::NotFound,
-        //         "ANDROID_HOME, NDK_HOME, or JAVA_HOME not set.",
-        //     ));
-        // }
         // Install cargo-apk
         println!("Installing cargo-apk...");
         let install_output = Command::new(session.get_path("cargo_path")?)
@@ -1581,7 +1531,7 @@ fn update_icons(session: &Session) -> io::Result<()> {
     //update windows icon
     convert_png_to_ico(&session, &originating_icon)?;
 
-    //TODO macos only
+    //TODO add linux support
     if session.os.as_str() == "macos" {
         println!("update icons for macos/ios");
         resize_png(
@@ -1790,7 +1740,6 @@ fn install(session: &mut Session) -> io::Result<()> {
     // linker = "x86_64-unknown-linux-gnu-gcc"
     // EOF
 
-    //TODO verify that both zsh and bsh are supported across implementations
 
     Ok(())
 }
@@ -1827,24 +1776,26 @@ fn main() -> io::Result<()> {
         update_icons(&session)?;
 
         //build the target output build_output(session: &Session, target_os: String, release: bool)
-        build_output(&mut session, "android".to_string(), false)?;
+        build_output(&mut session, "ios".to_string(), false)?;
     }
 
     //TODOS
 
-    //Remove all .zshrc configurations
-
-
     //test that all app icons are properly removed and recreated after an update
     //release key and dev cert management
-    //deploy to simulators
+    
 
     //MACOS
-    //fix ubuntu output compatability (see notes in install function)
+    //deploy to simulators for every build output
+        //fix ubuntu output compatability (see notes in install function)
     //set up/config key signers
     //lipo outputs for combined chipset architectures for ios simulator and macos release
 
     //LINUX
+    //start to finish comb through
+    //ensure that all commands set paths in the .ramp config
+    //rework all commands to use paths from the .ramp config
+    //discard any .zsh or .bshrc persistence
     //refactor all sudo requirements outside of the -installation flag, consider a .deb install script that calls sudo with an -installation flag
     //setup/config key signers
     //BUILD for simulators, deploy simulator, hot load over a usb
