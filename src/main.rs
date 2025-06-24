@@ -765,7 +765,7 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
             Ok(output) => String::from_utf8_lossy(&output.stderr)
                 .to_lowercase()
                 .contains("openjdk"),
-            Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "failed to query java version")),
+            Err(_) => false,
         };
  
 
@@ -810,6 +810,7 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
             } else {
                 "/usr/local/opt/openjdk@17"
             };
+            session.set_path("java_path", java_home.to_string())?;
             (
                 java_home,
                 format!("{}/.zshrc", session.home),
@@ -903,6 +904,7 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
             .spawn()?;
         let license_output = Command::new(&session.get_path("sdkmanager_path")?)
             .args(["--licenses", &format!("--sdk_root={}", &session.get_path("sdk_path")?)])
+            .env("JAVA_HOME", &session.get_path("java_path")?)
             .stdin(license_cmd.stdout.take().unwrap())
             .output()?;
         license_cmd.wait()?;
@@ -918,6 +920,7 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
             println!("Installing {}...", package);
             let install_output = Command::new(&session.get_path("sdkmanager_path")?)
                 .args(&[package, &format!("--sdk_root={}", &session.get_path("sdk_path")?)])
+                .env("JAVA_HOME", &session.get_path("java_path")?)
                 .output()?;
             if !install_output.status.success() {
                 println!("Install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
@@ -979,19 +982,20 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
     if cargo_apk_ok {
         println!("cargo-apk is already installed. Skipping installation.");
     } else {
+        //TODO can we remove this without breaking everything?
         // Ensure Android SDK/NDK and JAVA_HOME are set
-        let android_home = env::var("ANDROID_HOME").unwrap_or_default();
-        let ndk_home = env::var("NDK_HOME").unwrap_or_default();
-        let java_home = env::var("JAVA_HOME").unwrap_or_default();
-        if android_home.is_empty() || ndk_home.is_empty() || java_home.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "ANDROID_HOME, NDK_HOME, or JAVA_HOME not set.",
-            ));
-        }
+        // let android_home = env::var("ANDROID_HOME").unwrap_or_default();
+        // let ndk_home = env::var("NDK_HOME").unwrap_or_default();
+        // let java_home = env::var("JAVA_HOME").unwrap_or_default();
+        // if android_home.is_empty() || ndk_home.is_empty() || java_home.is_empty() {
+        //     return Err(io::Error::new(
+        //         io::ErrorKind::NotFound,
+        //         "ANDROID_HOME, NDK_HOME, or JAVA_HOME not set.",
+        //     ));
+        // }
         // Install cargo-apk
         println!("Installing cargo-apk...");
-        let install_output = Command::new("cargo")
+        let install_output = Command::new(session.get_path("cargo_path")?)
             .args(&["install", "cargo-apk"])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
