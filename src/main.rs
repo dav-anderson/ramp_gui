@@ -409,6 +409,12 @@ fn install_rust_toolchain(session: &mut Session) -> io::Result<()> {
             "Failed to install Rust stable toolchain",
         ));
     }
+    
+    let sudo_user = env::var("SUDO_USER").unwrap().to_string();
+    let permissions = Command::new("sudo").args(["chown", "-R", &sudo_user, &format!("{}/.cargo", session.home)]).output()?;
+    if !permissions.status.success(){
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to enable permissions for .cargo directory"));
+    }
 
     println!("Rust stable toolchain installed!");
     Ok(())
@@ -1677,13 +1683,28 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     };
 
     // Execute cargo build
-    let output = Command::new("bash")
-        .arg("-c")
-        .arg(format!("{} {}", session.get_path("cargo_path")?, cargo_args))
-        .current_dir(project_dir) // Set working directory
-        .stdout(Stdio::inherit()) // Show build output
-        .stderr(Stdio::inherit())
-        .output()?;
+    let cargo_command = format!("{} {}", session.get_path("cargo_path")?, cargo_args);
+    let output = if target_os.as_str() == "android" {
+                    Command::new("bash")
+                    .arg("-c")
+                    .arg(&cargo_command)
+                    .current_dir(project_dir) // Set working directory
+                    //provide the environment paths for android toolchain
+                    .env("JAVA_HOME", &session.get_path("java_path")?)                
+                    .env("ANDROID_HOME", &session.get_path("sdk_path")?)
+                    .env("NDK_HOME", &session.get_path("ndk_path")?)
+                    .stdout(Stdio::inherit()) // Show build output
+                    .stderr(Stdio::inherit())
+                    .output()?
+                } else{
+                    Command::new("bash")
+                    .arg("-c")
+                    .arg(&cargo_command)
+                    .current_dir(project_dir) // Set working directory
+                    .stdout(Stdio::inherit()) // Show build output
+                    .stderr(Stdio::inherit())
+                    .output()?
+                };
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         return Err(io::Error::new(
@@ -1795,11 +1816,11 @@ fn main() -> io::Result<()> {
     }else{
         //create new proj
         let name: &str = "testproj";
-        new_project(&mut session, &name)?;
+        // new_project(&mut session, &name)?;
         println!("current project: {:?}", session.current_project);
 
         //load an existing proj
-        // load_project(&mut session, name)?;
+        load_project(&mut session, name)?;
         println!("current project: {:?}", session.current_project);
 
         //format the icon.png in assets/resources/icons across all outputs
