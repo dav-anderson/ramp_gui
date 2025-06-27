@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 image = "0.25.1"
 regex = "1.11.1"
-tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread"] }
 
 [target.x86_64-unknown-linux-gnu]
 linker = "x86_64-unknown-linux-gnu-gcc"

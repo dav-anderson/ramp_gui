@@ -592,7 +592,7 @@ fn install_homebrew(session: &mut Session) -> io::Result<()> {
     Ok(())
 }
 
-async fn open_xcode_app_store() -> io::Result<()> {
+fn install_xcode_prompt() -> io::Result<()> {
     // Open App Store to Xcode page
     let output = Command::new("open")
         .arg("macappstore://itunes.apple.com/app/xcode/id497799835")
@@ -605,7 +605,7 @@ async fn open_xcode_app_store() -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Xcode page in App Store"));
     }
 
-    // Asynchronously loop until Xcode is installed
+    //loop until Xcode is installed
     println!("Checking for Xcode installation every 5 seconds...");
     loop {
         if Path::new("/Applications/Xcode.app").exists() {
@@ -623,17 +623,21 @@ async fn open_xcode_app_store() -> io::Result<()> {
             }
         }
 
-        // Asynchronously wait 5 seconds
+        // wait 5 seconds
         sleep(Duration::from_secs(5));
     }
 }
 
-async fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
+fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
+    if session.os.as_str() != "macos" {
+        println!("not on macos, skipping ios/macos toolchain installation");
+        return Ok(())
+    }
     //verify that the Xcode app is already installed
     println!("checking for xcode installation...");
     let xcode_app = "/Applications/Xcode.app";
     if !Path::new(xcode_app).exists() {
-        open_xcode_app_store().await?;
+        install_xcode_prompt()?;
     }else{
         println!("xcode is already installed!");
     }
@@ -781,6 +785,12 @@ fn install_simulators(session: &Session) -> io::Result<()>{
         }
     }
     
+    Ok(())
+}
+
+fn setup_keychain(session: &Session) -> io::Result<()>{
+    println!("TODO need to setup keychain installer");
+
     Ok(())
 }
 
@@ -1899,7 +1909,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
 
 //initialization function upon starting the app
 //WARNING install must only be run with sudo privleges
-async fn install(session: &mut Session) -> io::Result<()> {
+fn install(session: &mut Session) -> io::Result<()> {
     //create ramp config
     create_ramp_config(&session)?;
     //get paths from any existing ramp configuration
@@ -1944,15 +1954,16 @@ async fn install(session: &mut Session) -> io::Result<()> {
     install_build_targets(session)?;
 
     //install mac/ios toolchains
-    install_macos_ios_toolchains(session).await?;
+    install_macos_ios_toolchains(session)?;
 
     //install android toolchains
     install_android_toolchains(session)?;
 
-    //TODO install and configure simulators
-    install_simulators(&session)?;
-
     //TODO setup keychain for ios app bundle
+    setup_keychain(session)?;
+
+    //TODO install and configure simulators
+    // install_simulators(session)?;
 
     //update xcode if xcode-install available
     //xcversion install --latest
@@ -1971,8 +1982,7 @@ async fn install(session: &mut Session) -> io::Result<()> {
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> io::Result<()> {
+fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
     session.get_all_paths()?;
@@ -1987,7 +1997,7 @@ async fn main() -> io::Result<()> {
     if args.contains(&"-installation".to_string()) {
         println!("Running installation with elevated privileges...");
         //initial install
-        install(&mut session).await?;
+        install(&mut session)?;
         //TODO terminate the session here
         //TODO move the binary from the .dmg or the .deb after install is finished
     }else{
