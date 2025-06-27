@@ -9,6 +9,10 @@ use std::fs::OpenOptions;
 use std::path::PathBuf;
 use std::io::BufReader;
 use std::io::BufRead;
+use regex::Regex;
+use std::thread::sleep;
+use std::time::Duration;
+
 
 struct Paths {
     sdk_path: Option<String>,
@@ -588,11 +592,50 @@ fn install_homebrew(session: &mut Session) -> io::Result<()> {
     Ok(())
 }
 
-fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
+async fn open_xcode_app_store() -> io::Result<()> {
+    // Open App Store to Xcode page
+    let output = Command::new("open")
+        .arg("macappstore://itunes.apple.com/app/xcode/id497799835")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open App Store: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Xcode page in App Store"));
+    }
+
+    // Asynchronously loop until Xcode is installed
+    println!("Checking for Xcode installation every 5 seconds...");
+    loop {
+        if Path::new("/Applications/Xcode.app").exists() {
+            // Verify Xcode installation by checking version
+            let output = Command::new("/Applications/Xcode.app/Contents/MacOS/Xcode")
+                .arg("--version")
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output()
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to check Xcode version: {}", e)))?;
+
+            if output.status.success() {
+                println!("Xcode installed successfully!");
+                return Ok(());
+            }
+        }
+
+        // Asynchronously wait 5 seconds
+        sleep(Duration::from_secs(5));
+    }
+}
+
+async fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     //verify that the Xcode app is already installed
+    println!("checking for xcode installation...");
     let xcode_app = "/Applications/Xcode.app";
     if !Path::new(xcode_app).exists() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Xcode is not properly installed via the appstore"));
+        open_xcode_app_store().await?;
+    }else{
+        println!("xcode is already installed!");
     }
     //point xcode-select to the proper path
     Command::new("sudo").args([
@@ -724,8 +767,20 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
 }
 
 fn install_simulators(session: &Session) -> io::Result<()>{
-    //run xcrun simctl list devices to initialize
-    println!("setting up simulators");
+    if session.os.as_str() == "macos"{
+        //run xcrun simctl list devices to initialize
+        println!("setting up simulators");
+        println!("setting up xcrun simctl");
+        let output = Command::new("sudo")
+        .args(["xcrun", "simctl", "list", "devices"])
+        .output()
+        .unwrap();
+        println!("result: {:?}", output);
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to initialize xcode simulator"));
+        }
+    }
+    
     Ok(())
 }
 
@@ -1250,6 +1305,23 @@ fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) ->
     Ok(())
 }
 
+fn get_bundle_id(target_os: &str) -> io::Result<String> {
+    let plist_path = format!("{}/Info.plist", target_os);
+    let plist_content = fs::read_to_string(&plist_path)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to read Info.plist: {}", e)))?;
+
+    let re = Regex::new(r#"<key>CFBundleIdentifier</key>\s*<string>([^<]+)</string>"#).unwrap();
+    let captures = re.captures(&plist_content)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "CFBundleIdentifier not found"))?;
+
+    let bundle_id = captures.get(1)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Failed to extract CFBundleIdentifier"))?
+        .as_str()
+        .to_string();
+
+    Ok(bundle_id)
+}
+
 //capitalize the first letter in a string
 fn capitalize_first(s: &str) -> String {
     match s.get(0..1) {
@@ -1562,22 +1634,137 @@ fn update_icons(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
-// fn load_simulator(session: &Session, target_os: String, release: bool) -> io::Result<()>{
-//     println!("TODO load_simulator");
-//     //MACOS side
-//     //TODO macos sim
-//     //TODO ios sim
-//     //TODO android sim
-//     //TODO windows sim
-//     //TODO ubuntu sim?
-//     //todo wasm?
+fn get_device_uuid() -> io::Result<String> {
+    // Run xcrun devicectl list devices
+    let output = Command::new("xcrun")
+        .args(["devicectl", "list", "devices"])
+        .stdout(Stdio::piped())
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run devicectl: {}", e)))?;
 
-//     //UBUNTU SIDE
-//     //TODO android sim
-//     //TODO windows sim
-//     //TODO ubuntu sim?
-//     //todo wasm?
-// }
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "devicectl command failed"));
+    }
+
+    // Parse output with regex for UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let re = Regex::new(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}").unwrap();
+    let uuids: Vec<&str> = re.find_iter(&stdout).map(|m| m.as_str()).collect();
+
+    // Check UUID count
+    match uuids.len() {
+        1 => Ok(uuids[0].to_string()),
+        0 => Err(io::Error::new(io::ErrorKind::NotFound, "No device UUID found")),
+        _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Multiple device UUIDs found")),
+    }
+}
+
+fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
+    println!("load_simulator");
+    if target_os == "ios" {
+        //TODO make sure this never tried to boot a non sim binary
+        println!("deploying to {} simulator", target_os);
+        //TODO check if simulator is already running first
+        //open ios simuator
+        let output = Command::new("open")
+            .args(["-a", "simulator"])
+            .output()
+            .unwrap();
+        if !output.status.success(){
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not open IOS simulator: {}",
+            ));
+        }
+        //TODO create a device, need to build out support here
+        //boot & install the .app bundle to the simulator
+        let output = Command::new("xcrun")
+            .args(["simctl", "install", "booted", &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+            .output()
+            .unwrap();
+        
+        if !output.status.success(){
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not deploy to IOS simulator: {}",
+            ));
+        }
+    }
+    //MACOS side
+    //TODO macos sim
+    //TODO ios sim
+    //TODO android sim
+    //TODO windows sim
+    //TODO ubuntu sim?
+    //todo wasm?
+
+    //UBUNTU SIDE
+    //TODO android sim
+    //TODO windows sim
+    //TODO ubuntu sim?
+    //todo wasm?
+    println!("finished deploying to {} simulator", target_os);
+    Ok(())
+}
+
+fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
+    if target_os == "ios"{
+        println!("deploying to ios device");
+        let uuid = get_device_uuid()?;
+        println!("target uuid: {}", &uuid);
+        let output = Command::new("xcrun")
+            .args(["devicectl", "device", "install", "app", "--device", &uuid, &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            println!("here is the output: {:?}", &output);
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not install app bundle to IOS device via USB tether: {}",
+            ));
+        }
+        let bundle_id = get_bundle_id("ios")?;
+        println!("Deploying bundle id: {} to device: {}", &bundle_id, &uuid);
+        let output = Command::new("xcrun")
+            .args(["devicectl", "device", "process", "launch", "--device", &uuid, &bundle_id])
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not launch app bundle to IOS device via USB tether: {}",
+            ));
+        }
+    }else if target_os == "android"{
+        println!("TODO android tether deployment");
+    }
+
+    println!("Successfully deployed to {} device", &target_os);
+
+    Ok(())
+    
+}
+
+fn sign_build(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
+    println!("signing app bundle for {}", target_os);
+    if target_os == "ios" {
+        //sign the build
+        let output = Command::new("codesign")
+        .args(["--force", "--deep", "--sign", " - ", &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+        .output()
+        .unwrap();
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("ios post build failed to sign app bundle: {}", error),
+            ));
+        }
+    }
+    //TODO add support for other outputs
+    println!("signed {} app bundle", target_os);
+    Ok(())
+}
 
 fn build_output(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
     // Validate project path
@@ -1619,6 +1806,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "build --target aarch64-apple-ios{}",
             if release { " --release " } else { "" }
         ),
+        "ios_sim" => "build --target aarch64-apple-ios-sim".to_string(),
         //TODO need to support lipo outputs for combined chipset architecture
         "macos" => format!(
             "build{}",
@@ -1669,12 +1857,49 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
         target_os,
         if release { "release" } else { "debug" }
     );
+
+    //post build house keeping
+    if target_os == "ios" && release == false {
+        println!("performing ios post build...");
+        //move the binary into the ios app bundle
+        let output = Command::new("cp")
+        .args([&format!("{}/target/aarch64-apple-ios/debug/{}", project_path, session.current_project.as_ref().unwrap()), &format!("{}/ios/{}.app/", project_path, capitalize_first(session.current_project.as_ref().unwrap()))])
+        .output()
+        .unwrap();
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("ios post build failed to move binary: {}", error),
+            ));
+        }
+        sign_build(session, target_os, release)?;
+        println!("signed ios app bundle: {:?}", output);
+    }else if target_os == "ios" && release == true{
+        println!("TODO release build for ios");
+        //TODO copy if exists /target/aarch64-apple-ios/release/appname to ios/Appname.app/
+    }else if target_os == "ios_sim" {
+        //TODO create a seperate app bundle for simulator?
+        println!("performing ios sim post build...");
+        let output = Command::new("cp")
+        .args([&format!("{}/target/aarch64-apple-ios-sim/debug/{}", project_path, session.current_project.as_ref().unwrap()), &format!("{}/ios/{}.app/", project_path, capitalize_first(session.current_project.as_ref().unwrap()))])
+        .output()
+        .unwrap();
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("ios_sim post build failed: {}", error),
+            ));
+        }
+    } 
+    //TODO add support for all other outputs as needed
     Ok(())
 }
 
 //initialization function upon starting the app
 //WARNING install must only be run with sudo privleges
-fn install(session: &mut Session) -> io::Result<()> {
+async fn install(session: &mut Session) -> io::Result<()> {
     //create ramp config
     create_ramp_config(&session)?;
     //get paths from any existing ramp configuration
@@ -1719,13 +1944,15 @@ fn install(session: &mut Session) -> io::Result<()> {
     install_build_targets(session)?;
 
     //install mac/ios toolchains
-    install_macos_ios_toolchains(session)?;
+    install_macos_ios_toolchains(session).await?;
 
     //install android toolchains
     install_android_toolchains(session)?;
 
     //TODO install and configure simulators
     install_simulators(&session)?;
+
+    //TODO setup keychain for ios app bundle
 
     //update xcode if xcode-install available
     //xcversion install --latest
@@ -1744,7 +1971,8 @@ fn install(session: &mut Session) -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> io::Result<()> {
+#[tokio::main]
+async fn main() -> io::Result<()> {
     let mut session = Session::new()?;
     println!("Starting a new session on OS: {}", session.os);
     session.get_all_paths()?;
@@ -1759,7 +1987,7 @@ fn main() -> io::Result<()> {
     if args.contains(&"-installation".to_string()) {
         println!("Running installation with elevated privileges...");
         //initial install
-        install(&mut session)?;
+        install(&mut session).await?;
         //TODO terminate the session here
         //TODO move the binary from the .dmg or the .deb after install is finished
     }else{
@@ -1777,6 +2005,9 @@ fn main() -> io::Result<()> {
 
         //build the target output build_output(session: &Session, target_os: String, release: bool)
         build_output(&mut session, "ios".to_string(), false)?;
+
+        // load_simulator(&mut session, "ios".to_string())?;
+        deploy_usb_tether(&mut session, "ios".to_string())?;
     }
 
     //TODOS
