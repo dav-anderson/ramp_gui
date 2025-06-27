@@ -6,7 +6,6 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::fs::OpenOptions;
-use std::path::PathBuf;
 use std::io::BufReader;
 use std::io::BufRead;
 use regex::Regex;
@@ -742,7 +741,6 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
         // Verify installation
         if is_xcode_tools_installed() {
             println!("Command Line Tools for Xcode installed successfully!");
-            return Ok(())
         } else {
             println!("Installation completed but verification failed");
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to verify Xcode installation"));
@@ -841,9 +839,8 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
  
 
     // OS-specific configuration
-    let (java_home, shell_config, sdk_url, install_jdk): (
+    let (java_home, sdk_url, install_jdk): (
         &str,
-        String,
         &str,
         Box<dyn Fn() -> io::Result<()>>,
     ) = match session.os.as_str() {
@@ -852,7 +849,6 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
             println!("Java home: {}", java_home.to_string());
             (
                 "/usr/lib/jvm/java-17-openjdk-amd64",
-                format!("{}/.bashrc", session.home),
                 "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip",
                 Box::new(|| -> io::Result<()> {
                     println!("Installing OpenJDK 17...");
@@ -884,7 +880,6 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
             session.set_path("java_path", java_home.to_string())?;
             (
                 java_home,
-                format!("{}/.zshrc", session.home),
                 "https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip",
                 Box::new(move || -> io::Result<()> {
                     println!("Installing OpenJDK 17...");
@@ -1998,8 +1993,9 @@ fn main() -> io::Result<()> {
         println!("Running installation with elevated privileges...");
         //initial install
         install(&mut session)?;
-        //TODO terminate the session here
         //TODO move the binary from the .dmg or the .deb after install is finished
+        //TODO terminate the session
+        //TODO can we start an external script with a timer here to relaunch ramp gui after closing initial install client?
     }else{
         //create new proj
         let name: &str = "testproj";
@@ -2023,13 +2019,14 @@ fn main() -> io::Result<()> {
     //TODOS
 
     //test that all app icons are properly removed and recreated after an update
-    //release key and dev cert management
+    //signing keys and dev cert management
     
 
     //MACOS
+    //set up/config key signers & dev certs
+    //deploy via usb tether for ios and android
     //deploy to simulators for every build output
-        //fix ubuntu output compatability (see notes in install function)
-    //set up/config key signers
+    //fix ubuntu output compatability (see notes in install function)
     //lipo outputs for combined chipset architectures for ios simulator and macos release
 
     //LINUX
@@ -2053,6 +2050,8 @@ fn main() -> io::Result<()> {
     //template version tracking
 
     //ability to customize projects path
+
+    //ability to customize paths to binaries (can manually do this in "$HOME/.ramp" config currently)
 
     Ok(())
 }
