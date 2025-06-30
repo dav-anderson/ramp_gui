@@ -594,7 +594,7 @@ fn install_homebrew(session: &mut Session) -> io::Result<()> {
 fn install_xcode_prompt() -> io::Result<()> {
     // Open App Store to Xcode page
     let output = Command::new("open")
-        .arg("macappstore://itunes.apple.com/app/xcode/id497799835")
+        .args(["-a", "safari", "https://apps.apple.com/us/app/xcode/id497799835"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .output()
