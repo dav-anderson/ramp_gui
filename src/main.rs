@@ -26,6 +26,7 @@ struct Paths {
     platforms_path: Option<String>,
     ndk_bundle_path: Option<String>,
     java_path: Option<String>,
+    keystore_path: Option<String>,
 }
 
 struct Session {
@@ -65,6 +66,7 @@ impl Session {
             platforms_path: None,
             ndk_bundle_path: None,
             java_path: None,
+            keystore_path: None,
         };
         Ok(Session {
             os,
@@ -102,153 +104,188 @@ impl Session {
         }
     }
 
-// Method to update a path in the Paths struct and .config file
-fn set_path(&mut self, path_name: &str, file_path: String) -> io::Result<()> {
-    // Update the Paths struct
-    println!("Updating config path {} to {}", path_name, file_path);
-    match path_name {
-        "sdk_path" => self.paths.sdk_path = Some(file_path.clone()),
-        "ndk_path" => self.paths.ndk_path = Some(file_path.clone()),
-        "cargo_path" => self.paths.cargo_path = Some(file_path.clone()),
-        "cargo_apk_path" => self.paths.cargo_apk_path = Some(file_path.clone()),
-        "rustup_path" => self.paths.rustup_path = Some(file_path.clone()),
-        "homebrew_path" => self.paths.homebrew_path = Some(file_path.clone()),
-        "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(file_path.clone()),
-        "sdkmanager_path" => self.paths.sdkmanager_path = Some(file_path.clone()),
-        "platform_tools_path" => self.paths.platform_tools_path = Some(file_path.clone()),
-        "platforms_path" => self.paths.platforms_path = Some(file_path.clone()),
-        "ndk_bundle_path" => self.paths.ndk_bundle_path = Some(file_path.clone()),
-        "java_path" => self.paths.java_path = Some(file_path.clone()),
-        _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, "Unknown path name")),
+    // Method to update a path in the Paths struct and .config file
+    fn set_path(&mut self, path_name: &str, file_path: String) -> io::Result<()> {
+        // Update the Paths struct
+        println!("Updating config path {} to {}", path_name, file_path);
+        match path_name {
+            "sdk_path" => self.paths.sdk_path = Some(file_path.clone()),
+            "ndk_path" => self.paths.ndk_path = Some(file_path.clone()),
+            "cargo_path" => self.paths.cargo_path = Some(file_path.clone()),
+            "cargo_apk_path" => self.paths.cargo_apk_path = Some(file_path.clone()),
+            "rustup_path" => self.paths.rustup_path = Some(file_path.clone()),
+            "homebrew_path" => self.paths.homebrew_path = Some(file_path.clone()),
+            "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(file_path.clone()),
+            "sdkmanager_path" => self.paths.sdkmanager_path = Some(file_path.clone()),
+            "platform_tools_path" => self.paths.platform_tools_path = Some(file_path.clone()),
+            "platforms_path" => self.paths.platforms_path = Some(file_path.clone()),
+            "ndk_bundle_path" => self.paths.ndk_bundle_path = Some(file_path.clone()),
+            "java_path" => self.paths.java_path = Some(file_path.clone()),
+            "keystore_path" => self.paths.keystore_path = Some(file_path.clone()),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput, "Unknown path name")),
+        }
+
+        // Read existing config file
+        let config_path = format!("{}/.ramp", self.home);
+        let mut config_lines = Vec::new();
+        let mut found = false;
+
+        if Path::new(&config_path).exists() {
+            let file = File::open(&config_path)?;
+            let reader = BufReader::new(file);
+            for line in reader.lines() {
+                let line = line?;
+                if line.starts_with(&format!("{}=", path_name)) {
+                    config_lines.push(format!("{}={}", path_name, file_path));
+                    found = true;
+                } else {
+                    config_lines.push(line);
+                }
+            }
+        }
+
+        // If the path wasn't found, append it
+        if !found {
+            config_lines.push(format!("{}={}", path_name, file_path));
+        }
+
+        // Write updated config back to file
+        let mut file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&config_path)?;
+        for line in config_lines {
+            writeln!(file, "{}", line)?;
+        }
+
+        println!("Successfully updated path");
+
+        Ok(())
     }
 
-    // Read existing config file
-    let config_path = format!("{}/.ramp", self.home);
-    let mut config_lines = Vec::new();
-    let mut found = false;
+    // Method to read .config and update Paths struct
+    fn get_all_paths(&mut self) -> io::Result<()> {
+        let config_path = format!("{}/.ramp", self.home);
 
-    if Path::new(&config_path).exists() {
+        if !Path::new(&config_path).exists() {
+            return Ok(()); // No config file yet, keep default paths
+        }
+
         let file = File::open(&config_path)?;
         let reader = BufReader::new(file);
+
         for line in reader.lines() {
             let line = line?;
-            if line.starts_with(&format!("{}=", path_name)) {
-                config_lines.push(format!("{}={}", path_name, file_path));
-                found = true;
-            } else {
-                config_lines.push(line);
+            if let Some((key, value)) = line.split_once('=') {
+                match key.trim() {
+                    "sdk_path" => self.paths.sdk_path = Some(value.trim().to_string()),
+                    "ndk_path" => self.paths.ndk_path = Some(value.trim().to_string()),
+                    "cargo_path" => self.paths.cargo_path = Some(value.trim().to_string()),
+                    "cargo_apk_path" => self.paths.cargo_apk_path = Some(value.trim().to_string()),
+                    "rustup_path" => self.paths.rustup_path = Some(value.trim().to_string()),
+                    "homebrew_path" => self.paths.homebrew_path = Some(value.trim().to_string()),
+                    "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(value.trim().to_string()),
+                    "sdkmanager_path" => self.paths.sdkmanager_path = Some(value.trim().to_string()),
+                    "platform_tools_path" => self.paths.platform_tools_path = Some(value.trim().to_string()),
+                    "platforms_path" => self.paths.platforms_path = Some(value.trim().to_string()),
+                    "ndk_bundle_path" => self.paths.ndk_bundle_path = Some(value.trim().to_string()),
+                    "java_path" => self.paths.java_path = Some(value.trim().to_string()),
+                    "keystore_path" => self.paths.keystore_path = Some(value.trim().to_string()),
+                    _ => (), // Ignore unknown keys
+                }
             }
         }
+
+        Ok(())
     }
 
-    // If the path wasn't found, append it
-    if !found {
-        config_lines.push(format!("{}={}", path_name, file_path));
-    }
-
-    // Write updated config back to file
-    let mut file = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open(&config_path)?;
-    for line in config_lines {
-        writeln!(file, "{}", line)?;
-    }
-
-    println!("Successfully updated path");
-
-    Ok(())
-}
-
-// Method to read .config and update Paths struct
-fn get_all_paths(&mut self) -> io::Result<()> {
-    let config_path = format!("{}/.ramp", self.home);
-
-    if !Path::new(&config_path).exists() {
-        return Ok(()); // No config file yet, keep default paths
-    }
-
-    let file = File::open(&config_path)?;
-    let reader = BufReader::new(file);
-
-    for line in reader.lines() {
-        let line = line?;
-        if let Some((key, value)) = line.split_once('=') {
-            match key.trim() {
-                "sdk_path" => self.paths.sdk_path = Some(value.trim().to_string()),
-                "ndk_path" => self.paths.ndk_path = Some(value.trim().to_string()),
-                "cargo_path" => self.paths.cargo_path = Some(value.trim().to_string()),
-                "cargo_apk_path" => self.paths.cargo_apk_path = Some(value.trim().to_string()),
-                "rustup_path" => self.paths.rustup_path = Some(value.trim().to_string()),
-                "homebrew_path" => self.paths.homebrew_path = Some(value.trim().to_string()),
-                "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(value.trim().to_string()),
-                "sdkmanager_path" => self.paths.sdkmanager_path = Some(value.trim().to_string()),
-                "platform_tools_path" => self.paths.platform_tools_path = Some(value.trim().to_string()),
-                "platforms_path" => self.paths.platforms_path = Some(value.trim().to_string()),
-                "ndk_bundle_path" => self.paths.ndk_bundle_path = Some(value.trim().to_string()),
-                "java_path" => self.paths.java_path = Some(value.trim().to_string()),
-                _ => (), // Ignore unknown keys
-            }
+    fn get_path(&mut self, key: &str) -> io::Result<String>{
+        match key {
+            "sdk_path" => Ok(self.paths.sdk_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "sdk_path not set"))?
+                .to_string()),
+            "ndk_path" => Ok(self.paths.ndk_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "ndk_path not set"))?
+                .to_string()),
+            "cargo_path" => Ok(self.paths.cargo_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cargo_path not set"))?
+                .to_string()),
+            "cargo_apk_path" => Ok(self.paths.cargo_apk_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cargo_apk_path not set"))?
+                .to_string()),
+            "rustup_path" => Ok(self.paths.rustup_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "rustup_path not set"))?
+                .to_string()),
+            "homebrew_path" => Ok(self.paths.homebrew_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "homebrew_path not set"))?
+                .to_string()),
+            "cmdline_tools_path" => Ok(self.paths.cmdline_tools_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cmdline_tools_path not set"))?
+                .to_string()),
+            "sdkmanager_path" => Ok(self.paths.sdkmanager_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "sdkmanager_path not set"))?
+                .to_string()),
+            "platform_tools_path" => Ok(self.paths.platform_tools_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "platform_tools_path not set"))?
+                .to_string()),
+            "platforms_path" => Ok(self.paths.platforms_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "platforms_path not set"))?
+                .to_string()),
+            "ndk_bundle_path" => Ok(self.paths.ndk_bundle_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "ndk_bundle_path not set"))?
+                .to_string()),
+            "java_path" => Ok(self.paths.java_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "java_path not set"))?
+                .to_string()),
+            "keystore_path" => Ok(self.paths.java_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "keystore_path not set"))?
+                .to_string()),
+            _ => Err(io::Error::new(io::ErrorKind::NotFound, format!("Unknown Key: {}", key)))
         }
+
     }
 
-    Ok(())
-}
+    // fn set_key(&mut self, key_name: String, key_path: String) -> io::Result<()> {
+    //     let new_path = format!(
+    //         "{}/{}",
+    //         self.projects_path.as_ref().unwrap_or(&String::new()),
+    //         key_name
+    //     );
+    //     //check that the requested project exists at the specificed path
+    //     if !Path::new(&new_path).exists() {
+    //         return Err(io::Error::new(
+    //             io::ErrorKind::Other,
+    //             "Failed to load project, project not found",
+    //         ));
+    //     }
+    //     //check the requested project for compatibility with ramp
+    //     if Path::new(&format!("{}/.ramp", &new_path)).exists() {
+    //         self.current_project = Some(key_name);
+    //         return Ok(());
+    //     } else {
+    //         return Err(io::Error::new(
+    //             io::ErrorKind::Other,
+    //             "Failed to load project, not compatible with ramp",
+    //         ));
+    //     }
+    // }
 
-fn get_path(&mut self, key: &str) -> io::Result<String>{
-    match key {
-        "sdk_path" => Ok(self.paths.sdk_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "sdk_path not set"))?
-            .to_string()),
-        "ndk_path" => Ok(self.paths.ndk_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "ndk_path not set"))?
-            .to_string()),
-        "cargo_path" => Ok(self.paths.cargo_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cargo_path not set"))?
-            .to_string()),
-        "cargo_apk_path" => Ok(self.paths.cargo_apk_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cargo_apk_path not set"))?
-            .to_string()),
-        "rustup_path" => Ok(self.paths.rustup_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "rustup_path not set"))?
-            .to_string()),
-        "homebrew_path" => Ok(self.paths.homebrew_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "homebrew_path not set"))?
-            .to_string()),
-        "cmdline_tools_path" => Ok(self.paths.cmdline_tools_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cmdline_tools_path not set"))?
-            .to_string()),
-        "sdkmanager_path" => Ok(self.paths.sdkmanager_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "sdkmanager_path not set"))?
-            .to_string()),
-        "platform_tools_path" => Ok(self.paths.platform_tools_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "platform_tools_path not set"))?
-            .to_string()),
-        "platforms_path" => Ok(self.paths.platforms_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "platforms_path not set"))?
-            .to_string()),
-        "ndk_bundle_path" => Ok(self.paths.ndk_bundle_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "ndk_bundle_path not set"))?
-            .to_string()),
-        "java_path" => Ok(self.paths.java_path
-            .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "java_path not set"))?
-            .to_string()),
-        _ => Err(io::Error::new(io::ErrorKind::NotFound, format!("Unknown Key: {}", key)))
-    }
-
-}
+    // fn get_key(session: &Session, key_name: String) -> io::Result<(String)> {
+        
+    // }
 
 }
 
@@ -786,9 +823,120 @@ fn install_simulators(session: &Session) -> io::Result<()>{
     Ok(())
 }
 
-fn setup_keychain(session: &Session) -> io::Result<()>{
+fn setup_keychain(session: &mut Session) -> io::Result<()>{
     println!("TODO need to setup keychain installer");
+    //TODO take in the users email and pass it into this function
+    //FOR now use this hardcode placeholder
+    let email = "david@orange.me";
+    if session.os.as_str() == "macos"{
+        println!("setting up keychain for macos");
+        session.set_path("keystore_path", format!("{}/Library/Keychains", session.home))?;
+        let key_path = format!("{}/ramp.pem", session.paths.keystore_path.as_ref().unwrap());
+        //generate the signing key
+        let output = Command::new("openssl")
+            .args([
+                "genrsa",
+                "-out",
+                &key_path,
+                "2048"
+            ])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to generate private key: {}", e)))?;
+            if !output.status.success() {
+                return Err(io::Error::new(io::ErrorKind::Other, "OpenSSL key generation failed"));
+            }
+        // Generate a CSR
+        let csr_path = format!("{}/ramp.csr", session.paths.keystore_path.as_ref().unwrap());
+        let output = Command::new("openssl")
+            .args([
+                "req",
+                "-new",
+                "-key",
+                &key_path,
+                "-out",
+                &csr_path,
+                "-subj",
+                &format!("/CN=iOS Debug Certificate/O={}", email),
+            ])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to generate CSR: {}", e)))?;
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "OpenSSL CSR generation failed"));
+        }
+        //open apple developer portal
+        let output = Command::new("open")
+            .args(["-a", "safari", "https://developer.apple.com/account/resources/certificates/add"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open Apple developer portal: {}", e)))?;
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Apple developer portal"));
+        }       
+        //open the file explorer to show the CSR
+        let output = Command::new("open")
+            .arg(session.paths.keystore_path.as_ref().unwrap())
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open CSR in file explorer at path {}", &csr_path)));
+        }
 
+    }
+
+    //TODO upload the key cert
+    //TODO download the developer cert
+    //TODO security import the cert into the keychain
+
+    Ok(())
+}
+
+
+// Function to create a debug signing identity (private key and CSR)
+// fn create_debug_signing_identity(developer_email: &str, keychain_path: &str) -> io::Result<()> {
+//     println!("Creating debug signing identity for {}", developer_email);
+
+//     // Prompt user to upload CSR to Apple Developer Portal
+        //FIRST ENSURE YOUR PROVIDED EMAIL IS ALREADY ENROLLED IN THE APPLE DEVELOPER PROGRAM OR AN ORGANIZATION 
+//     println!("Please upload the CSR at {} to the Apple Developer Portal (https://developer.apple.com/account/resources/certificates/add):", csr_path);
+//     println!("1. Log in to your Apple Developer account.");
+//     println!("2. Go to Certificates, Identifiers & Profiles > Certificates > Add (+).");
+//     println!("3. Choose 'iOS App Development', upload {}, and download the certificate.", csr_path);
+//     println!("4. Import the certificate to Keychain Access:");
+//     println!("   security import <downloaded_certificate>.cer -k ~/Library/Keychains/login.keychain");
+//     println!("Press Enter when done...");
+//     io::stdout().flush()?;
+//     let mut input = String::new();
+//     io::stdin().read_line(&mut input)?;
+
+//     Ok(())
+// }
+
+//sign an app build
+fn sign_build(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
+    println!("signing app bundle for {}", target_os);
+    if target_os == "ios" {
+        //sign the build
+        let output = Command::new("codesign")
+        .args(["--force", "--deep", "--sign", "ramp.pem", &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .unwrap();
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("ios post build failed to sign app bundle: {}", error),
+            ));
+        }
+    }
+    //TODO add support for other outputs
+    println!("signed {} app bundle", target_os);
     Ok(())
 }
 
@@ -1750,27 +1898,6 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
     
 }
 
-fn sign_build(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
-    println!("signing app bundle for {}", target_os);
-    if target_os == "ios" {
-        //sign the build
-        let output = Command::new("codesign")
-        .args(["--force", "--deep", "--sign", " - ", &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
-        .output()
-        .unwrap();
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("ios post build failed to sign app bundle: {}", error),
-            ));
-        }
-    }
-    //TODO add support for other outputs
-    println!("signed {} app bundle", target_os);
-    Ok(())
-}
-
 fn build_output(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
     // Validate project path
     let project_path = format!(
@@ -1954,7 +2081,7 @@ fn install(session: &mut Session) -> io::Result<()> {
     //install android toolchains
     install_android_toolchains(session)?;
 
-    //TODO setup keychain for ios app bundle
+    //TODO setup keychain
     setup_keychain(session)?;
 
     //TODO install and configure simulators
