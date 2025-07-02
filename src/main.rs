@@ -29,12 +29,17 @@ struct Paths {
     keystore_path: Option<String>,
 }
 
+struct Certs {
+    macos: String
+}
+
 struct Session {
     os: String,
     home: String,
     projects_path: Option<String>,
     current_project: Option<String>,
     paths: Paths,
+    certs: Certs,
     android_ndk_version: String,
     android_platform_version: String,
 }
@@ -68,12 +73,16 @@ impl Session {
             java_path: None,
             keystore_path: None,
         };
+        let certs = Certs{
+            macos: "Apple Development".to_string(),
+        };
         Ok(Session {
             os,
             home,
             projects_path,
             current_project: None,
             paths,
+            certs,
             android_ndk_version: "26.1.10909125".to_string(),
             android_platform_version: "31".to_string(),
         })
@@ -257,35 +266,6 @@ impl Session {
         }
 
     }
-
-    // fn set_key(&mut self, key_name: String, key_path: String) -> io::Result<()> {
-    //     let new_path = format!(
-    //         "{}/{}",
-    //         self.projects_path.as_ref().unwrap_or(&String::new()),
-    //         key_name
-    //     );
-    //     //check that the requested project exists at the specificed path
-    //     if !Path::new(&new_path).exists() {
-    //         return Err(io::Error::new(
-    //             io::ErrorKind::Other,
-    //             "Failed to load project, project not found",
-    //         ));
-    //     }
-    //     //check the requested project for compatibility with ramp
-    //     if Path::new(&format!("{}/.ramp", &new_path)).exists() {
-    //         self.current_project = Some(key_name);
-    //         return Ok(());
-    //     } else {
-    //         return Err(io::Error::new(
-    //             io::ErrorKind::Other,
-    //             "Failed to load project, not compatible with ramp",
-    //         ));
-    //     }
-    // }
-
-    // fn get_key(session: &Session, key_name: String) -> io::Result<(String)> {
-        
-    // }
 
 }
 
@@ -825,15 +805,74 @@ fn install_simulators(session: &Session) -> io::Result<()>{
 
 fn setup_keychain(session: &mut Session) -> io::Result<()>{
     println!("TODO need to setup keychain installer");
-    //TODO take in the users email and pass it into this function
-    //FOR now use this hardcode placeholder
-    let email = "david@orange.me";
     if session.os.as_str() == "macos"{
+        //check if keychain is locked, if so, unlock
+        loop{
+            let output = Command::new("security")
+                .args(["show-keychain-info", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+                .output()
+                .unwrap();
+            
+            if output.status.success() && !String::from_utf8_lossy(&output.stdout).contains("locked") {
+                break;
+            }else{
+                // wait 3 seconds
+                sleep(Duration::from_secs(3));
+            }
+        }
+
+        //TODO check if identity exists, if so check if certificate is trusted, if so return Ok(())
+        //security find-identity
+
+        //TODO take in the users email and pass it into this function
+        //FOR now use this terminal input placeholder
+        let mut email = String::new();
+        println!("*********************************************");
+        println!("Please enter your apple developer email. This email must be associated with an apple developer account.");
+        println!("*********************************************");
+        io::stdin()
+            .read_line(&mut email)
+            .expect("failed to read line");
+        let email = email.trim();
+        println!("using email: {}", &email);
+
+        let mut full_name = String::new();
+        println!("*********************************************");
+        println!("Please enter your full name. This must be the legal name associated with your apple developer account.");
+        println!("*********************************************");
+        io::stdin()
+            .read_line(&mut full_name)
+            .expect("failed to read line");
+        let full_name = full_name.trim();
+        println!("using name: {}", &full_name);
+
+        let mut org = String::new();
+        println!("*********************************************");
+        println!("Please enter your organization's name. This must be the organization's name associated with your apple developer account. (You may leave this blank if indvidual)");
+        println!("*********************************************");
+        io::stdin()
+            .read_line(&mut org)
+            .expect("failed to read line");
+        let org = org.trim();
+        println!("using name: {}", &org);
+
         println!("setting up keychain for macos");
-        session.set_path("keystore_path", format!("{}/Library/Keychains", session.home))?;
+        //check if the key already exists and if it does do not generate a new one
+        match &session.paths.keystore_path {
+            Some(val) => {
+                println!("keystore path is already set");
+            },
+            None => {
+                println!("keystore path not set");
+                session.set_path("keystore_path", format!("{}/Library/Keychains", session.home))?;
+            },
+        }
+        //check if the keypath exists, if not generate a new key
         let key_path = format!("{}/ramp.pem", session.paths.keystore_path.as_ref().unwrap());
-        //generate the signing key
-        let output = Command::new("openssl")
+        if !Path::new(&key_path).exists() {
+            println!("no private key found, generating new key");
+             //generate the signing key
+            let output = Command::new("openssl")
             .args([
                 "genrsa",
                 "-out",
@@ -847,9 +886,26 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
             if !output.status.success() {
                 return Err(io::Error::new(io::ErrorKind::Other, "OpenSSL key generation failed"));
             }
-        // Generate a CSR
+            //security import the private key into the keychain
+            let output = Command::new("security")
+            .args(["import", &format!("{}/ramp.pem", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap()), "-T", "/usr/bin/codesign"])
+            .output()
+            .unwrap();
+            if !output.status.success() {
+                return Err(io::Error::new(io::ErrorKind::Other, "Failed to import the ramp.pem to the keychain-db"));
+            }
+        }else {println!("ramp.pem already exists");}
+        //check if the CSR exists, if not generate a new CSR
         let csr_path = format!("{}/ramp.csr", session.paths.keystore_path.as_ref().unwrap());
-        let output = Command::new("openssl")
+        if !Path::new(&csr_path).exists() {
+            let mut subject = String::new();
+            if org == "" {
+                subject = format!("/CN={} /emailAddress={}", full_name, email);
+            } else {
+                subject = format!("/CN={} /O={} /emailAddress={}", full_name, org, email);
+            }
+            // Generate a CSR
+            let output = Command::new("openssl")
             .args([
                 "req",
                 "-new",
@@ -858,18 +914,20 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
                 "-out",
                 &csr_path,
                 "-subj",
-                &format!("/CN=iOS Debug Certificate/O={}", email),
+                &subject,
             ])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to generate CSR: {}", e)))?;
-        if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "OpenSSL CSR generation failed"));
-        }
+            if !output.status.success() {
+                return Err(io::Error::new(io::ErrorKind::Other, "OpenSSL CSR generation failed"));
+            }
+        }else{println!("ramp.csr already exists");}
+
         //open apple developer portal
         let output = Command::new("open")
-            .args(["-a", "safari", "https://developer.apple.com/account/resources/certificates/add"])
+            .args(["-a", "safari", "https://developer.apple.com/account/resources/certificates/list"])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .output()
@@ -885,44 +943,147 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         if !output.status.success() {
             return Err(io::Error::new(io::ErrorKind::Other, format!("Failed to open CSR in file explorer at path {}", &csr_path)));
         }
+        //TODO eventually replace these prints in the GUI
+        println!("1. Now go to the safari window and login to your developer account.");
+        println!("2. Once you have logged in, click the + button next to \"Certificates\".");
+        println!("3. Select the \"Apple Development\" checkbox and then hit next.");
+        println!("4. Next drag and drop the \"ramp.csr\" file from the file finder window into Safari. Click the next button.");
+        println!("5. Click the download button");
+
+        //continuously checks for "development.cer" in the Downloads folder and moves it once found
+        let cert_download = format!("{}/Downloads/development.cer", session.home);
+        loop {
+            if Path::new(&cert_download).exists() {
+                //Copy the cert to the keychain
+                let output = Command::new("mv")
+                    .args([&cert_download, session.paths.keystore_path.as_ref().unwrap()])
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .output()
+                    .unwrap();
+                if !output.status.success() {
+                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to copy the development.cer to the keychain directory"));
+                }
+                println!("Successfully downloaded signing certificate!");
+                break;
+            }else {
+                // wait 3 seconds
+                sleep(Duration::from_secs(3));
+            }
+        }
+        //TODO can probably remove this was using for testing
+        //convert the .cer to a .pem
+        // let output = Command::new("openssl")
+        //     .args(["x509", "-in", &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap()), "-inform", "DER", "-out", &format!("{}/development.pem", session.paths.keystore_path.as_ref().unwrap()), "-outform", "PEM"])
+        //     .output()
+        //     .unwrap();
+        // if !output.status.success() {
+        //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to convert the development.cer to development.pem"));
+        // }
+        //security import the cert into the keychain
+        let output = Command::new("security")
+            .args(["import", &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to import the development.pem to the keychain-db"));
+        }
+        //TODO this may be deprecated 
+        // add the certificate as trusted for code signing
+        // let output = Command::new("security")
+        //     .args(["add-trusted-cert", "-d", "-r", "trustAsRoot", "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap()), &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap())])
+        //     .output()
+        //     .unwrap();
+        // if !output.status.success() {
+        //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to add trusted cert to the development.cer"));
+        // }        
+        //get the App Developer Worldwide Developer Relations Ceritifcation Authority certificate
+        let output = Command::new("curl")
+            .args(["-o", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"])
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain Apple WWDRCA cert with curl"));
+        }  
+        //convert the AppleWWDRCA.cer to a .der
+        // let output = Command::new("openssl")
+        //     .args(["x509", "-outform", "der", "-in", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-out", &format!("{}/AppleWWDRCA.der", session.paths.keystore_path.as_ref().unwrap())])
+        //     .output()
+        //     .unwrap();
+        // if !output.status.success() {
+        //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to convert the AppleWWDRCA.cer to .der"));
+        // }
+        //add the apple Developer worldwide relations cert to the security chain
+        let output = Command::new("security")
+        .args(["import", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+        .output()
+        .unwrap();
+        println!("AppleWWDRCA.cer import output: {:?}", output);
+        if !output.status.success() && !String::from_utf8_lossy(&output.stderr).contains("already exists") {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to import the AppleWWDRCA.cer to the keychain-db"));
+        }
+        //get the App Developer Worldwide Developer Relations Ceritifcation Authority certificate
+        let output = Command::new("curl")
+        .args(["-o", &format!("{}/AppleRootCA.cer", session.paths.keystore_path.as_ref().unwrap()), "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer"])
+        .output()
+        .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain AppleRootCA cert with curl"));
+        }  
+        //add the apple Root CA cert to the security chain
+        let output = Command::new("security")
+        .args(["import", &format!("{}/AppleRootCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+        .output()
+        .unwrap();
+        println!("AppleRootCA.cer import output: {:?}", output);
+        if !output.status.success() && !String::from_utf8_lossy(&output.stderr).contains("already exists") {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to import the AppleRootCA.cer to the keychain-db"));
+        }
+        //Get the Developer ID CA
+        let output = Command::new("curl")
+        .args(["-o", &format!("{}/AppleDevIDCA.cer", session.paths.keystore_path.as_ref().unwrap()), "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer"])
+        .output()
+        .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain AppleDevIDCA.cer cert with curl"));
+        }  
+        //add the apple Root CA cert to the security chain
+        let output = Command::new("security")
+        .args(["import", &format!("{}/AppleDevIDCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+        .output()
+        .unwrap();
+        println!("AppleDevIDCA.cer import output: {:?}", output);
+        if !output.status.success() && !String::from_utf8_lossy(&output.stderr).contains("already exists") {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to import the AppleDevIDCA.cer to the keychain-db"));
+        }
+
+        println!("Successfully set up the keychain for macos!")
 
     }
-
-    //TODO upload the key cert
-    //TODO download the developer cert
-    //TODO security import the cert into the keychain
-
     Ok(())
 }
-
-
-// Function to create a debug signing identity (private key and CSR)
-// fn create_debug_signing_identity(developer_email: &str, keychain_path: &str) -> io::Result<()> {
-//     println!("Creating debug signing identity for {}", developer_email);
-
-//     // Prompt user to upload CSR to Apple Developer Portal
-        //FIRST ENSURE YOUR PROVIDED EMAIL IS ALREADY ENROLLED IN THE APPLE DEVELOPER PROGRAM OR AN ORGANIZATION 
-//     println!("Please upload the CSR at {} to the Apple Developer Portal (https://developer.apple.com/account/resources/certificates/add):", csr_path);
-//     println!("1. Log in to your Apple Developer account.");
-//     println!("2. Go to Certificates, Identifiers & Profiles > Certificates > Add (+).");
-//     println!("3. Choose 'iOS App Development', upload {}, and download the certificate.", csr_path);
-//     println!("4. Import the certificate to Keychain Access:");
-//     println!("   security import <downloaded_certificate>.cer -k ~/Library/Keychains/login.keychain");
-//     println!("Press Enter when done...");
-//     io::stdout().flush()?;
-//     let mut input = String::new();
-//     io::stdin().read_line(&mut input)?;
-
-//     Ok(())
-// }
 
 //sign an app build
 fn sign_build(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
     println!("signing app bundle for {}", target_os);
     if target_os == "ios" {
+        //check if keychain is locked, if so, unlock
+        loop{
+            let output = Command::new("security")
+                .args(["show-keychain-info", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+                .output()
+                .unwrap();
+            
+            if output.status.success() && !String::from_utf8_lossy(&output.stdout).contains("locked") {
+                break;
+            }else{
+                // wait 3 seconds
+                sleep(Duration::from_secs(3));
+            }
+        }
         //sign the build
         let output = Command::new("codesign")
-        .args(["--force", "--deep", "--sign", "ramp.pem", &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+        .args(["--force", "--sign", session.certs.macos.as_ref(), &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .output()
@@ -2115,9 +2276,9 @@ fn main() -> io::Result<()> {
     // Print arguments for debugging
     println!("Arguments: {:?}", args);
     
-    // Check for the -installation argument, this flow requires sudo priveleges
-    if args.contains(&"-installation".to_string()) {
-        println!("Running installation with elevated privileges...");
+    // Check for the -install argument, this flow requires sudo priveleges
+    if args.contains(&"-install".to_string()) {
+        println!("Running install with elevated privileges...");
         //initial install
         install(&mut session)?;
         //TODO move the binary from the .dmg or the .deb after install is finished
@@ -2161,7 +2322,7 @@ fn main() -> io::Result<()> {
     //ensure that all commands set paths in the .ramp config
     //rework all commands to use paths from the .ramp config
     //discard any .zsh or .bshrc persistence
-    //refactor all sudo requirements outside of the -installation flag, consider a .deb install script that calls sudo with an -installation flag
+    //refactor all sudo requirements outside of the -install flag, consider a .deb install script that calls sudo with an -install flag
     //setup/config key signers
     //BUILD for simulators, deploy simulator, hot load over a usb
 

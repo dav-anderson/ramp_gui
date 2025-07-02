@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Run the installation with sudo and wait for it to complete
-sudo ./appName -installation
+sudo ./appName -install
 
 # Check if the sudo command was successful
 if [ $? -eq 0 ]; then
