@@ -2,15 +2,14 @@ use image::{self, imageops, DynamicImage, GenericImageView, ImageEncoder, ImageF
 use std::env;
 use std::fs;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Write, BufReader, BufRead, ErrorKind};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::fs::OpenOptions;
-use std::io::BufReader;
-use std::io::BufRead;
 use regex::Regex;
 use std::thread::sleep;
 use std::time::Duration;
+
 
 
 struct Paths {
@@ -804,7 +803,7 @@ fn install_simulators(session: &Session) -> io::Result<()>{
 }
 
 fn setup_keychain(session: &mut Session) -> io::Result<()>{
-    println!("TODO need to setup keychain installer");
+    println!("keychain installer");
     if session.os.as_str() == "macos"{
         //check if keychain is locked, if so, unlock
         loop{
@@ -821,8 +820,8 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
             }
         }
 
-        //TODO check if identity exists, if so check if certificate is trusted, if so return Ok(())
-        //security find-identity
+        //TODO check if identity exists, if so check if certificate is trusted, if so return Ok(())?
+        //security find-identity?
 
         //TODO take in the users email and pass it into this function
         //FOR now use this terminal input placeholder
@@ -988,7 +987,8 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         if !output.status.success() {
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to import the development.pem to the keychain-db"));
         }
-        //TODO this may be deprecated 
+        //TODO this may be deprecated and/or causing a signing bug
+        //TODO test if this works with a fresh install without a trusted cert
         // add the certificate as trusted for code signing
         // let output = Command::new("security")
         //     .args(["add-trusted-cert", "-d", "-r", "trustAsRoot", "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap()), &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap())])
@@ -1005,14 +1005,6 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         if !output.status.success() {
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain Apple WWDRCA cert with curl"));
         }  
-        //convert the AppleWWDRCA.cer to a .der
-        // let output = Command::new("openssl")
-        //     .args(["x509", "-outform", "der", "-in", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-out", &format!("{}/AppleWWDRCA.der", session.paths.keystore_path.as_ref().unwrap())])
-        //     .output()
-        //     .unwrap();
-        // if !output.status.success() {
-        //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to convert the AppleWWDRCA.cer to .der"));
-        // }
         //add the apple Developer worldwide relations cert to the security chain
         let output = Command::new("security")
         .args(["import", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
@@ -1060,6 +1052,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         println!("Successfully set up the keychain for macos!")
 
     }
+    //TODO add support for all other target builds
     Ok(())
 }
 
@@ -1500,8 +1493,11 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
         }
     }
 
+    //create bundle identifier
+    let bundle_id = create_app_bundle_id(session)?;
+
     //rename everything inside of the template with the project name
-    template_naming(session, &name.to_lowercase())?;
+    template_naming(session, &name.to_lowercase(), bundle_id)?;
 
     //update the current loaded project to the new project
     load_project(session, &name.to_lowercase())?;
@@ -1516,22 +1512,22 @@ fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
 }
 
 //renames all of the paths and file contents of the template to match the user provided name when creating a new ramp project
-fn template_naming(session: &mut Session, name: &str) -> io::Result<()> {
+fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>) -> io::Result<()> {
     let new_path = format!(
         "{}/{}",
         session.projects_path.as_ref().unwrap_or(&String::new()),
         name
     );
     let capitalized_name = capitalize_first(name);
-    //rename app in Cargo.toml
     let replacements = vec![("Webgpu", capitalized_name.as_str()), ("webgpu", name)];
+    //rename default strings in cargo.toml
     replace_strings_in_file(&format!("{}/Cargo.toml", new_path), &replacements)?;
     //rename dir ios/Webgpu.app
     rename_directory(
         &format!("{}/ios/Webgpu.app", new_path),
         &format!("{}.app", &capitalized_name),
     )?;
-    //rename ios/Webgpu.app/Info.plist
+    //rename default strings in ios/Webgpu.app/Info.plist
     replace_strings_in_file(
         &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
         &replacements,
@@ -1541,17 +1537,26 @@ fn template_naming(session: &mut Session, name: &str) -> io::Result<()> {
         &format!("{}/macos/Webgpu.app", new_path),
         &format!("{}.app", &capitalized_name),
     )?;
-    //rename macos/Webgpu.app/Contents/Info.plist
+    //rename default strings in macos/Webgpu.app/Contents/Info.plist
+    replace_strings_in_file(
+        &format!("{}/macos/{}.app/Info.plist", new_path, capitalized_name),
+        &replacements,
+    )?;
+    //replace bundle id if applicable
+    if bundle_id.is_some() {
+        let existing_bundle = format!("com.example.{}", session.current_project.as_ref().unwrap());
+        let replacements = vec![(existing_bundle.as_str(), bundle_id.as_ref().unwrap().as_str())];
+        replace_strings_in_file(
+            &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
+            &replacements,
+        )?;
+    }
+    //rename default strings in Cargo.toml
+    let replacements = vec![("ramp_template", name)];
     replace_strings_in_file(
         &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
         &replacements,
-    )?;
-    //rename Cargo.toml internals
-    let replacements = vec![("webgpu", name), ("ramp_template", name)];
-    replace_strings_in_file(
-        &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
-        &replacements,
-    )?;
+    )?;    
 
     Ok(())
 }
@@ -1948,7 +1953,108 @@ fn update_icons(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
-fn get_device_uuid() -> io::Result<String> {
+fn provision_device(session: &mut Session, uuid: String) -> io::Result<()> {
+    println!("Setting up provisioning profile for device id: {}", &uuid);
+    //open apple developer portal
+    let output = Command::new("open")
+    .args(["-a", "safari", "https://developer.apple.com/account/resources/devices/list"])
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .output()
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open Apple developer portal: {}", e)))?;
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Apple developer portal"));
+    }    
+    println!("**********************************");   
+    //TODO eventually replace these prints in the GUI
+    println!("1. Now go to the safari window and login to your developer account.");
+    println!("2. Once you have logged in, click the + button next to \"Devices\".");
+    println!("3. Give the device whatever name you would like and copy and paste in the following numbers and letters into \"Device ID (UUID)\".");
+    println!("{}", &uuid);
+    println!("4. Click the continue button.");
+    
+
+    println!("5. Press enter to continue");
+
+    Ok(())
+}
+
+fn get_uuid_by_target(device_target: &str) -> io::Result<String> {
+    // Run xcrun xctrace list devices
+    let output = Command::new("xcrun")
+        .args(["xctrace", "list", "devices"])
+        .output()
+        .map_err(|e| {
+            io::Error::new(
+                ErrorKind::Other,
+                format!("Failed to execute xcrun xctrace: {}", e),
+            )
+        })?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(
+            ErrorKind::Other,
+            format!("xcrun xctrace failed: {}", String::from_utf8_lossy(&output.stderr)),
+        ));
+    }
+
+    let output_str = String::from_utf8_lossy(&output.stdout);
+
+    // Define regex pattern based on device target
+    let pattern = match device_target.to_lowercase().as_str() {
+        "iphone" => r"(?i)^iPhone\s+\([^)]+\)\s+\(([0-9a-f]{8}-[0-9a-f]{16})\)",
+        "ipad" => r"(?i)^iPad\s+\([^)]+\)\s+\(([0-9a-f]{8}-[0-9a-f]{16})\)",
+        "macos" => {
+            r"(?i)^[^\n]*MacBook[^\n]*\s+\(([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)"
+        }
+        _ => {
+            return Err(io::Error::new(
+                ErrorKind::InvalidInput,
+                "Invalid device target: must be 'iphone', 'ipad', or 'macos'",
+            ))
+        }
+    };
+
+    let re = Regex::new(pattern).map_err(|e| {
+        io::Error::new(ErrorKind::Other, format!("Failed to compile regex: {}", e))
+    })?;
+
+    // Collect all matching UDIDs
+    let mut udids = Vec::new();
+    for line in output_str.lines() {
+        if let Some(captures) = re.captures(line) {
+            if let Some(udid) = captures.get(1) {
+                let udid_str = udid.as_str();
+                // Validate UDID length (25 for iPhone/iPad, 36 for macOS)
+                if (device_target.to_lowercase() == "iphone" || device_target.to_lowercase() == "ipad")
+                    && udid_str.len() == 25
+                    || device_target.to_lowercase() == "macos" && udid_str.len() == 36
+                {
+                    udids.push(udid_str.to_string());
+                }
+            }
+        }
+    }
+
+    // Check the number of matching UDIDs
+    match udids.len() {
+        0 => Err(io::Error::new(
+            ErrorKind::NotFound,
+            format!("No {} device found", device_target),
+        )),
+        1 => Ok(udids[0].clone()),
+        _ => Err(io::Error::new(
+            ErrorKind::Other,
+            format!(
+                "Multiple {} devices found: {}",
+                device_target,
+                udids.join(", ")
+            ),
+        )),
+    }
+}
+
+fn get_device_identifier() -> io::Result<String> {
     // Run xcrun devicectl list devices
     let output = Command::new("xcrun")
         .args(["devicectl", "list", "devices"])
@@ -1968,10 +2074,11 @@ fn get_device_uuid() -> io::Result<String> {
     // Check UUID count
     match uuids.len() {
         1 => Ok(uuids[0].to_string()),
-        0 => Err(io::Error::new(io::ErrorKind::NotFound, "No device UUID found")),
-        _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Multiple device UUIDs found")),
+        0 => Err(io::Error::new(io::ErrorKind::NotFound, "No device identifier found")),
+        _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Multiple device IDs found")),
     }
 }
+
 
 fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
     println!("load_simulator");
@@ -2023,11 +2130,17 @@ fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
 
 fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
     if target_os == "ios"{
+        //TODO first check if the device needs to be provisioned somehow, and if so
+        //obtain device uuid
+        // let uuid = get_uuid_by_target("iphone")?;
+        //add a new provisioning profile for a macos device
+        // provision_device(&mut session, uuid)?;
+
         println!("deploying to ios device");
-        let uuid = get_device_uuid()?;
-        println!("target uuid: {}", &uuid);
+        let device_id = get_device_identifier()?;
+        println!("target uuid: {}", &device_id);
         let output = Command::new("xcrun")
-            .args(["devicectl", "device", "install", "app", "--device", &uuid, &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+            .args(["devicectl", "device", "install", "app", "--device", &device_id, &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
             .output()
             .unwrap();
         if !output.status.success() {
@@ -2038,9 +2151,9 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
             ));
         }
         let bundle_id = get_bundle_id("ios")?;
-        println!("Deploying bundle id: {} to device: {}", &bundle_id, &uuid);
+        println!("Deploying bundle id: {} to device: {}", &bundle_id, &device_id);
         let output = Command::new("xcrun")
-            .args(["devicectl", "device", "process", "launch", "--device", &uuid, &bundle_id])
+            .args(["devicectl", "device", "process", "launch", "--device", &device_id, &bundle_id])
             .output()
             .unwrap();
         if !output.status.success() {
@@ -2050,6 +2163,7 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
             ));
         }
     }else if target_os == "android"{
+        //TODO android device tether deployment
         println!("TODO android tether deployment");
     }
 
@@ -2057,6 +2171,56 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
 
     Ok(())
     
+}
+
+//this needs to get called when creating a new project on macos/ios
+fn create_app_bundle_id(session: &mut Session) -> io::Result<Option<String>> {
+        if session.os.as_str() != "macos"{
+            return Ok(None)
+        }
+        //open apple developer portal
+        let output = Command::new("open")
+        .args(["-a", "safari", "https://developer.apple.com/account/resources/identifiers/list/bundleId"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open Apple developer portal: {}", e)))?;
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Apple developer portal"));
+        }    
+
+        //take in app bundle id here
+        let mut bundle_id = String::new();
+        println!("*********************************************");
+        println!("Please enter your app bundle ID. Press enter for default (Reccomended) which will be \"com.example.{}\"", session.current_project.as_ref().unwrap());
+        println!("*********************************************");
+        io::stdin()
+            .read_line(&mut bundle_id)
+            .expect("failed to read line");
+        let bundle_id = bundle_id.trim();
+        let bundle_id = if bundle_id.is_empty() {
+            format!("com.example.{}", session.current_project.as_ref().unwrap())
+        }else {
+            bundle_id.to_string()
+        };
+        println!("using bundle_id: {}", &bundle_id);
+
+        println!("**********************************");   
+        //TODO eventually replace these prints in the GUI
+        println!("1. Now go to the safari window and login to your developer account.");
+        println!("2. Once you have logged in, click the + button next to \"Identifiers\".");
+        println!("3. Select \"App IDs\" and click the continue button.");
+        println!("4. Select \"App\" for the type and click the continue button.");
+        println!("5. Copy and paste your App Bundle ID shown below into the \"Bundle ID\" box.");
+        println!("{}", &bundle_id);
+        println!("6. Give your app whatever description you like and then press the continue button.");
+        println!("7. Click the Register button.");
+    
+        if bundle_id == format!("com.example.{}", session.current_project.as_ref().unwrap()){
+            Ok(None)
+        }else {
+            Ok(Some(bundle_id))
+        }
 }
 
 fn build_output(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
@@ -2242,7 +2406,7 @@ fn install(session: &mut Session) -> io::Result<()> {
     //install android toolchains
     install_android_toolchains(session)?;
 
-    //TODO setup keychain
+    //setup keychain
     setup_keychain(session)?;
 
     //TODO install and configure simulators
@@ -2294,14 +2458,14 @@ fn main() -> io::Result<()> {
         load_project(&mut session, name)?;
         println!("current project: {:?}", session.current_project);
 
-        //format the icon.png in assets/resources/icons across all outputs
-        update_icons(&session)?;
+        // //format the icon.png in assets/resources/icons across all outputs
+        // update_icons(&session)?;
 
-        //build the target output build_output(session: &Session, target_os: String, release: bool)
-        build_output(&mut session, "ios".to_string(), false)?;
+        // //build the target output build_output(session: &Session, target_os: String, release: bool)
+        // build_output(&mut session, "ios".to_string(), false)?;
 
-        // load_simulator(&mut session, "ios".to_string())?;
-        deploy_usb_tether(&mut session, "ios".to_string())?;
+        // // load_simulator(&mut session, "ios".to_string())?;
+        // deploy_usb_tether(&mut session, "ios".to_string())?;
     }
 
     //TODOS
