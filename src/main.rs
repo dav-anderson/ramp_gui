@@ -8,9 +8,7 @@ use std::process::{Command, Stdio};
 use std::fs::OpenOptions;
 use regex::Regex;
 use std::thread::sleep;
-use std::time::Duration;
-
-
+use std::time::{Duration, Instant};
 
 struct Paths {
     sdk_path: Option<String>,
@@ -674,10 +672,10 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
         "/usr/local"
     };
 
-    let brew_bin = format!("{}/bin/brew", brew_dir);
+    let brew_bin = format!("{}/bin", brew_dir);
 
     // Check if Homebrew is installed
-    let brew_ok = Command::new(&brew_bin)
+    let brew_ok = Command::new(format!("{}/brew", &brew_bin))
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -687,6 +685,9 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     if !brew_ok {
         //install homebrew if mac
         install_homebrew(session)?;
+    } else {
+        //update config to the bin path if already installed
+        session.set_path("homebrew_path", brew_bin)?;
     }
 
     // Check for Xcode Command Line Tools
@@ -780,6 +781,14 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
         std::process::exit(1);
     }
 
+    //install libimobiledevice
+    let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
+        .args(["install", "libimobiledevice"])
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install libimobiledevice"));
+    }
+
     println!("MacOS & IOS toolchain installation complete");
     Ok(())
 }
@@ -803,6 +812,7 @@ fn install_simulators(session: &Session) -> io::Result<()>{
 }
 
 fn setup_keychain(session: &mut Session) -> io::Result<()>{
+    //TODO this currently creates a debug signing certificate only, different certificate properties must be configured for release on apple's developer website
     println!("keychain installer");
     if session.os.as_str() == "macos"{
         //check if keychain is locked, if so, unlock
@@ -961,7 +971,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
                     .output()
                     .unwrap();
                 if !output.status.success() {
-                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to copy the development.cer to the keychain directory"));
+                    return Err(io::Error::new(io::ErrorKind::Other, "Failed to move the development.cer to the keychain directory"));
                 }
                 println!("Successfully downloaded signing certificate!");
                 break;
@@ -1544,7 +1554,7 @@ fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>)
     )?;
     //replace bundle id if applicable
     if bundle_id.is_some() {
-        let existing_bundle = format!("com.example.{}", session.current_project.as_ref().unwrap());
+        let existing_bundle = format!("com.ramp.{}", session.current_project.as_ref().unwrap());
         let replacements = vec![(existing_bundle.as_str(), bundle_id.as_ref().unwrap().as_str())];
         replace_strings_in_file(
             &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
@@ -1953,17 +1963,17 @@ fn update_icons(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
-fn provision_device(session: &mut Session, uuid: String) -> io::Result<()> {
-    println!("Setting up provisioning profile for device id: {}", &uuid);
+fn provision_device(session: &mut Session, uuid: String, target_os: &String, release: bool) -> io::Result<()> {
+    println!("Provisioning a new device with id: {}", &uuid);
     //open apple developer portal
     let output = Command::new("open")
     .args(["-a", "safari", "https://developer.apple.com/account/resources/devices/list"])
     .stdout(Stdio::null())
     .stderr(Stdio::null())
     .output()
-    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open Apple developer portal: {}", e)))?;
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open Apple developer portal to devices list: {}", e)))?;
     if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Apple developer portal"));
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Apple developer portal to devices list"));
     }    
     println!("**********************************");   
     //TODO eventually replace these prints in the GUI
@@ -1972,10 +1982,121 @@ fn provision_device(session: &mut Session, uuid: String) -> io::Result<()> {
     println!("3. Give the device whatever name you would like and copy and paste in the following numbers and letters into \"Device ID (UUID)\".");
     println!("{}", &uuid);
     println!("4. Click the continue button.");
-    
+    println!("5. Press enter here in the terminal to continue");
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to receive user input: {}", e)))?;
 
-    println!("5. Press enter to continue");
+    //parse the app bundle id from the info.plist
+    let path_string = format!("{}/{}/{}/{}.app/Info.plist", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
+    let path = Path::new(&path_string);
+    let content = fs::read_to_string(path).map_err(|e| io::Error::new(io::ErrorKind::Other, format!("failed to read info.plist: {}", e)))?;
+    let key_str = "<key>CFBundleIdentifier</key>";
+    let key_pos = content.find(key_str).ok_or_else(|| io::Error::new(io::ErrorKind::Other, format!("CFBundleIdentifier key not found in Info.plist")))?;
+    let start_after_key = key_pos + key_str.len();
+    let rest_after_key = &content[start_after_key..];
 
+    let string_open = "<string>";
+    let string_pos = rest_after_key.find(string_open).ok_or_else(|| io::Error::new(io::ErrorKind::Other, "No value found for key CFBundleIdentifier"))?;
+    let start_of_value = string_pos + string_open.len();
+    let rest_after_open = &rest_after_key[start_of_value..];
+
+    let string_close = "</string>";
+    let close_pos = rest_after_open.find(string_close).ok_or_else(|| io::Error::new(io::ErrorKind::Other, "No value found for key CFBundleIdentifier"))?;
+    let bundle_id = rest_after_open[..close_pos].trim().to_string();
+
+    //create, download the .mobileprovision profile obtained from developer.apple
+    println!("Provisioning profile for device id: {} and app bundle: {}", &uuid, &bundle_id);
+     //open apple developer portal
+     let output = Command::new("open")
+     .args(["-a", "safari", "https://developer.apple.com/account/resources/profiles/list"])
+     .stdout(Stdio::null())
+     .stderr(Stdio::null())
+     .output()
+     .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open Apple developer portal profile list: {}", e)))?;
+     if !output.status.success() {
+         return Err(io::Error::new(io::ErrorKind::Other, "Failed to open Apple developer portal profile list"));
+     }    
+     println!("**********************************");   
+     //TODO eventually replace these prints in the GUI
+     println!("1. Now go to the safari window and login to your developer account if necessary.");
+     println!("2. Once you have logged in, click the + button next to \"Profiles\".");
+     println!("3. Check your development or distribution options: we reccomend choosing \"{} App Development\", then press continue", target_os.as_str());
+     println!("4. Select your App ID from the dropdown list: {}", &bundle_id);
+     println!("5. Select whether you would like offline support (choose No if you're not sure). Then press continue.");
+     println!("6. Select your Appropriate \"(Development)\" certificate. Then press continue.");
+
+     println!("7. Select the device profile corresponding to UUID: {}", &uuid);
+     println!("8. Click the continue button.");
+     //TODO add support for release key here by checking release bool and changing the string
+     let profile_name = if release {"Ramp Debug"} else {"Ramp Release"};
+     println!("9. Enter your Provisioning profile name. Reccomended: \"{}\"", &profile_name);
+     println!("10. Click \"Generate\". Then click \"Download\".");
+     println!("11. Press enter to continue...");
+     io::stdin().read_line(&mut input).map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to receive user input: {}", e)))?;
+
+     //detect the .mobileprovision from the Downloads folder
+    let downloads_path_string = format!("{}/Downloads", &session.home);
+    let downloads_path = Path::new(&downloads_path_string);
+    let timeout = Duration::from_secs(60);
+    let start_time = Instant::now();
+
+    let mobileprovision_file: String;
+
+    //loop for 60 seconds to check for a .mobileprovision in Downloads
+    loop {
+        if start_time.elapsed() >= timeout {
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "No .mobileprovision file found within 60 seconds"));
+        }
+
+        let entries = fs::read_dir(downloads_path)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to read directory: {}", e)))?;
+
+        let mut matching_files = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to process directory entry: {}", e)))?;
+            let file_name = entry.file_name().to_string_lossy().into_owned();
+            if file_name.ends_with(".mobileprovision") {
+                matching_files.push(file_name);
+            }
+        }
+
+        match matching_files.len() {
+            0 => {
+                // Continue looping
+            }
+            1 => {
+                mobileprovision_file = matching_files[0].clone();
+                break;
+            }
+            _ => {
+                return Err(io::Error::new(io::ErrorKind::Other, "Multiple .mobileprovision files found"));
+            }
+        }
+
+        // Sleep briefly
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    println!("Mobile Provision File Name: {}", &mobileprovision_file);
+    let mp_origin = format!("{}/Downloads/{}", &session.home, &mobileprovision_file);
+    println!("mobile provision origin path: {}", &mp_origin);
+    let mp_destination = format!("{}/{}/{}/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
+    println!("mobile provision destination path: {}", &mp_destination);
+    //cut the mobileprovision from Downloads folder to the project's app bundle
+    if Path::new(&mp_origin).exists() {
+        //Move the .mobileprovision to the app bundle
+        let output = Command::new("mv")
+            .args([&mp_origin, &mp_destination])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "Failed to move the .mobileprovision to the keychain directory"));
+        }
+        println!("Successfully moved the mobile provision!");
+    } else {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain the path to mobile provision"));
+    }
     Ok(())
 }
 
@@ -2128,17 +2249,101 @@ fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
     Ok(())
 }
 
-fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
-    if target_os == "ios"{
-        //TODO first check if the device needs to be provisioned somehow, and if so
-        //obtain device uuid
-        // let uuid = get_uuid_by_target("iphone")?;
-        //add a new provisioning profile for a macos device
-        // provision_device(&mut session, uuid)?;
+pub fn is_device_provisioned(app_bundle_path: &str, device_id: &str) -> io::Result<bool> {
+    //obtain to the mobile provision file name
+    let mobileprovision_file: String;
+    let entries = fs::read_dir(app_bundle_path)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to read directory: {}", e)))?;
 
+        let mut matching_files = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to process directory entry: {}", e)))?;
+            let file_name = entry.file_name().to_string_lossy().into_owned();
+            if file_name.ends_with(".mobileprovision") {
+                matching_files.push(file_name);
+            }
+        }
+
+        match matching_files.len() {
+            0 => {
+                return Ok(false);
+            }
+            1 => {
+                mobileprovision_file = matching_files[0].clone();
+            }
+            _ => {
+                return Ok(false);
+            }
+        }
+    let profile_path_str = format!("{}/{}", &app_bundle_path, &mobileprovision_file);
+    let profile_path = Path::new(&profile_path_str);
+    //query the mobile provision profile
+    let output = Command::new("security")
+        .arg("cms")
+        .arg("-D")
+        .arg("-i")
+        .arg(profile_path)
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to execute security command: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("security command failed: {}", String::from_utf8_lossy(&output.stderr)),
+        ));
+    }
+    //check for an existing device provision
+    let xml = String::from_utf8(output.stdout)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Invalid UTF-8 in plist: {}", e)))?;
+
+    let key_str = "<key>ProvisionedDevices</key>";
+    let Some(key_pos) = xml.find(key_str) else {
+        println!("provision profile does not contain valid syntax: <key>ProvisionedDevice</key>");
+        return Ok(false);
+    };
+    let start_after_key = key_pos + key_str.len();
+    let rest_after_key = &xml[start_after_key..];
+
+    let string_open = "<array>";
+    let Some(array_pos) = rest_after_key.find(string_open) else {
+        println!("provision profile does not contain valid syntax: <array>");
+        return Ok(false);
+    };
+    let start_of_array = array_pos + string_open.len();
+    let rest_after_open = &rest_after_key[start_of_array..];
+
+    let string_close = "</array>";
+    let Some(close_pos) = rest_after_open.find(string_close) else {
+        println!("provision profile does not contain valid syntax: </array>");
+        return Ok(false);
+    };
+    let array_content = &rest_after_open[..close_pos];
+
+    let device_entry = format!("<string>{}</string>", device_id);
+    if array_content.contains(&device_entry) {
+        println!("target device is already provisioned");
+        Ok(true)
+    } else {
+        println!("target device is not provisioned");
+        Ok(false)
+    }
+}
+
+fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
+    //obtain device uuid
+    let uuid = get_uuid_by_target("iphone")?;
+    let device_id = get_device_identifier()?;
+    println!("target device ID: {}", &device_id);
+    //check for an existing provisioning profile
+    let profile_path_str = &format!("{}/{}/{}/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
+    let provision_required = is_device_provisioned(&profile_path_str, &device_id)?;
+    if provision_required {
+        //add a new provisioning profile for a macos device
+        provision_device(session, uuid, &target_os, false)?;
+    }
+    //deploy to target device
+    if target_os == "ios"{
         println!("deploying to ios device");
-        let device_id = get_device_identifier()?;
-        println!("target uuid: {}", &device_id);
         let output = Command::new("xcrun")
             .args(["devicectl", "device", "install", "app", "--device", &device_id, &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
             .output()
@@ -2192,14 +2397,14 @@ fn create_app_bundle_id(session: &mut Session) -> io::Result<Option<String>> {
         //take in app bundle id here
         let mut bundle_id = String::new();
         println!("*********************************************");
-        println!("Please enter your app bundle ID. Press enter for default (Reccomended) which will be \"com.example.{}\"", session.current_project.as_ref().unwrap());
+        println!("Please enter your app bundle ID. Press enter for default (Reccomended) which will be \"com.ramp.{}\"", session.current_project.as_ref().unwrap());
         println!("*********************************************");
         io::stdin()
             .read_line(&mut bundle_id)
             .expect("failed to read line");
         let bundle_id = bundle_id.trim();
         let bundle_id = if bundle_id.is_empty() {
-            format!("com.example.{}", session.current_project.as_ref().unwrap())
+            format!("com.ramp.{}", session.current_project.as_ref().unwrap())
         }else {
             bundle_id.to_string()
         };
@@ -2216,7 +2421,7 @@ fn create_app_bundle_id(session: &mut Session) -> io::Result<Option<String>> {
         println!("6. Give your app whatever description you like and then press the continue button.");
         println!("7. Click the Register button.");
     
-        if bundle_id == format!("com.example.{}", session.current_project.as_ref().unwrap()){
+        if bundle_id == format!("com.ramp.{}", session.current_project.as_ref().unwrap()){
             Ok(None)
         }else {
             Ok(Some(bundle_id))
@@ -2462,10 +2667,10 @@ fn main() -> io::Result<()> {
         // update_icons(&session)?;
 
         // //build the target output build_output(session: &Session, target_os: String, release: bool)
-        // build_output(&mut session, "ios".to_string(), false)?;
+        build_output(&mut session, "ios".to_string(), false)?;
 
         // // load_simulator(&mut session, "ios".to_string())?;
-        // deploy_usb_tether(&mut session, "ios".to_string())?;
+        deploy_usb_tether(&mut session, "ios".to_string())?;
     }
 
     //TODOS
