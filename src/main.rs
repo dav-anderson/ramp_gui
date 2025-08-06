@@ -1963,8 +1963,8 @@ fn update_icons(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
-fn provision_device(session: &mut Session, uuid: String, target_os: &String, release: bool) -> io::Result<()> {
-    println!("Provisioning a new device with id: {}", &uuid);
+fn provision_device(session: &mut Session, udid: String, target_os: &String, release: bool) -> io::Result<()> {
+    println!("Provisioning a new device with unique device id: {}", &udid);
     //open apple developer portal
     let output = Command::new("open")
     .args(["-a", "safari", "https://developer.apple.com/account/resources/devices/list"])
@@ -1980,7 +1980,7 @@ fn provision_device(session: &mut Session, uuid: String, target_os: &String, rel
     println!("1. Now go to the safari window and login to your developer account.");
     println!("2. Once you have logged in, click the + button next to \"Devices\".");
     println!("3. Give the device whatever name you would like and copy and paste in the following numbers and letters into \"Device ID (UUID)\".");
-    println!("{}", &uuid);
+    println!("{}", &udid);
     println!("4. Click the continue button.");
     println!("5. Press enter here in the terminal to continue");
     let mut input = String::new();
@@ -2005,7 +2005,7 @@ fn provision_device(session: &mut Session, uuid: String, target_os: &String, rel
     let bundle_id = rest_after_open[..close_pos].trim().to_string();
 
     //create, download the .mobileprovision profile obtained from developer.apple
-    println!("Provisioning profile for device id: {} and app bundle: {}", &uuid, &bundle_id);
+    println!("Provisioning profile for device id: {} and app bundle: {}", &udid, &bundle_id);
      //open apple developer portal
      let output = Command::new("open")
      .args(["-a", "safari", "https://developer.apple.com/account/resources/profiles/list"])
@@ -2025,7 +2025,7 @@ fn provision_device(session: &mut Session, uuid: String, target_os: &String, rel
      println!("5. Select whether you would like offline support (choose No if you're not sure). Then press continue.");
      println!("6. Select your Appropriate \"(Development)\" certificate. Then press continue.");
 
-     println!("7. Select the device profile corresponding to UUID: {}", &uuid);
+     println!("7. Select the device profile corresponding to UUID: {}", &udid);
      println!("8. Click the continue button.");
      //TODO add support for release key here by checking release bool and changing the string
      let profile_name = if release {"Ramp Debug"} else {"Ramp Release"};
@@ -2097,10 +2097,12 @@ fn provision_device(session: &mut Session, uuid: String, target_os: &String, rel
     } else {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain the path to mobile provision"));
     }
+    //TODO install the profile to the device with the UDID and ilibmobiledevice
+
     Ok(())
 }
 
-fn get_uuid_by_target(device_target: &str) -> io::Result<String> {
+fn get_udid_by_target(device_target: &str) -> io::Result<String> {
     // Run xcrun xctrace list devices
     let output = Command::new("xcrun")
         .args(["xctrace", "list", "devices"])
@@ -2249,8 +2251,8 @@ fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
     Ok(())
 }
 
-pub fn is_device_provisioned(app_bundle_path: &str, device_id: &str) -> io::Result<bool> {
-    //obtain to the mobile provision file name
+fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &str, udid: &str) -> io::Result<bool> {
+    //obtain the mobile provision file name
     let mobileprovision_file: String;
     let entries = fs::read_dir(app_bundle_path)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to read directory: {}", e)))?;
@@ -2320,9 +2322,37 @@ pub fn is_device_provisioned(app_bundle_path: &str, device_id: &str) -> io::Resu
     let array_content = &rest_after_open[..close_pos];
 
     let device_entry = format!("<string>{}</string>", device_id);
+    //check if the profile contains the device id
     if array_content.contains(&device_entry) {
-        println!("target device is already provisioned");
-        Ok(true)
+        println!("provisioning profile contains the device id...checking device for installation");
+        //check that the profile is installed on the device
+        let content = fs::read_to_string(profile_path)?;
+        if let Some(key_pos) = content.find("<key>Name</key>") {
+            if let Some(string_start) = content[key_pos..].find("<string>") {
+                let start = key_pos + string_start + "<string>".len();
+                if let Some(string_end) = content[start..].find("</string>") {
+                    let profile_name = content[start..start + string_end].trim().to_string();
+                    if !profile_name.is_empty() {
+                        //TODO use full path to ideviceprovision
+                        let output = Command::new(format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap()))
+                            .args(["list", "--udid", udid])
+                            .output()?;
+                        if !output.status.success() {
+                            return Err(io::Error::new(io::ErrorKind::Other, "failed to list provisioning profiles: {}",));
+                        }
+                        let profiles = String::from_utf8_lossy(&output.stdout);
+                        if profiles.contains(&profile_name) {
+                            println!("target device is already provisioned");
+                            return Ok(true)
+                        }else{
+                            println!("provisioning profile is not currently installed on the target device");
+                            return Ok(false)
+                        }
+                    }
+                }
+            }
+        }
+        return Err(io::Error::new(io::ErrorKind::Other, "Name not found in provisioning profile: {}",));
     } else {
         println!("target device is not provisioned");
         Ok(false)
@@ -2331,15 +2361,15 @@ pub fn is_device_provisioned(app_bundle_path: &str, device_id: &str) -> io::Resu
 
 fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
     //obtain device uuid
-    let uuid = get_uuid_by_target("iphone")?;
+    let udid = get_udid_by_target("iphone")?;
     let device_id = get_device_identifier()?;
     println!("target device ID: {}", &device_id);
     //check for an existing provisioning profile
     let profile_path_str = &format!("{}/{}/{}/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
-    let provision_required = is_device_provisioned(&profile_path_str, &device_id)?;
+    let provision_required = is_device_provisioned(session, &profile_path_str, &device_id, &udid)?;
     if provision_required {
         //add a new provisioning profile for a macos device
-        provision_device(session, uuid, &target_os, false)?;
+        provision_device(session, udid, &target_os, false)?;
     }
     //deploy to target device
     if target_os == "ios"{
@@ -2350,10 +2380,7 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
             .unwrap();
         if !output.status.success() {
             println!("here is the output: {:?}", &output);
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "could not install app bundle to IOS device via USB tether: {}",
-            ));
+            return Err(io::Error::new(io::ErrorKind::Other, "could not install app bundle to IOS device via USB tether: {}",));
         }
         let bundle_id = get_bundle_id("ios")?;
         println!("Deploying bundle id: {} to device: {}", &bundle_id, &device_id);
