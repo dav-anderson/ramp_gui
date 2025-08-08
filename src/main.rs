@@ -2098,7 +2098,15 @@ fn provision_device(session: &mut Session, udid: String, target_os: &String, rel
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain the path to mobile provision"));
     }
     //TODO install the profile to the device with the UDID and ilibmobiledevice
-
+    let ilibimobile_bin = format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap());
+    let mobile_provision_path = format!("{}/{}", &mp_destination, &mobileprovision_file);
+    let output = Command::new(&ilibimobile_bin)
+        .args(["install", &mobile_provision_path, "--udid", &udid])
+        .output()
+        .unwrap();
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install .mobileprovision to the device"));
+    }
     Ok(())
 }
 
