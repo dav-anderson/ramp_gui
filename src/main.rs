@@ -1067,7 +1067,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
 }
 
 //sign an app build
-fn sign_build(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
+fn sign_build(session: &mut Session, target_os: &str, release: bool) -> io::Result<()> {
     println!("signing app bundle for {}", target_os);
     if target_os == "ios" {
         //check if keychain is locked, if so, unlock
@@ -1085,18 +1085,25 @@ fn sign_build(session: &mut Session, target_os: String, release: bool) -> io::Re
             }
         }
         //sign the build
+        let app_bundle = format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()));
         let output = Command::new("codesign")
-        .args(["--force", "--sign", session.certs.macos.as_ref(), &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+        .args(["--force", "--sign", session.certs.macos.as_ref(), "--entitlements", &format!("{}/entitlements.plist", &app_bundle),  &app_bundle])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .output()
         .unwrap();
-        if !output.status.success() {
+        if !output.status.success(){
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("ios post build failed to sign app bundle: {}", error),
-            ));
+            if !error.contains("failed to parse entitlements"){
+                println!("App bundle not signed, missing provisioning entitlements. Continuing to provisioning");
+                return Ok(())
+            }
+            else{
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("ios post build failed to sign app bundle: {}", error),
+                ));
+            }
         }
     }
     //TODO add support for other outputs
@@ -1634,10 +1641,10 @@ fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) ->
     Ok(())
 }
 
-fn get_bundle_id(target_os: &str) -> io::Result<String> {
-    let plist_path = format!("{}/Info.plist", target_os);
+fn get_bundle_id(session: &mut Session, target_os: &str) -> io::Result<String> {
+    let plist_path = format!("{}/{}/{}/{}.app/Info.plist", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
     let plist_content = fs::read_to_string(&plist_path)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to read Info.plist: {}", e)))?;
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to read Info.plist in get_bundle_id: {}", e)))?;
 
     let re = Regex::new(r#"<key>CFBundleIdentifier</key>\s*<string>([^<]+)</string>"#).unwrap();
     let captures = re.captures(&plist_content)
@@ -2097,16 +2104,47 @@ fn provision_device(session: &mut Session, udid: String, target_os: &String, rel
     } else {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to obtain the path to mobile provision"));
     }
-    //TODO install the profile to the device with the UDID and ilibmobiledevice
+    //install the profile to the device with the UDID and ilibmobiledevice
+    println!("installing provisioning profile to the target device");
     let ilibimobile_bin = format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap());
+    println!("ideviceprovision path: {}", &ilibimobile_bin);
     let mobile_provision_path = format!("{}/{}", &mp_destination, &mobileprovision_file);
+    println!("Mobile provision path: {}", &mobile_provision_path);
     let output = Command::new(&ilibimobile_bin)
         .args(["install", &mobile_provision_path, "--udid", &udid])
-        .output()
-        .unwrap();
+        .output()?;
     if !output.status.success() {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to install .mobileprovision to the device"));
     }
+
+    //decode and extract entitlements from the mobile provision into an entitltements.plist
+    println!("decoding and extracting the entitlements from the mobile provision");
+    let security_output = Command::new("security")
+    .args(["cms", "-D", "-i", &mobile_provision_path])
+    .output()?;
+    if !security_output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to decode provisioning profile"));
+    }
+    let entitlements_path = format!("{}/entitlements.plist", &mp_destination);
+
+    let mut plutil_cmd = Command::new("plutil")
+        .args(["-extract", "Entitlements", "xml1", "-o", &entitlements_path, "-"])
+        .stdin(Stdio::piped())
+        .spawn()?;
+
+    if let Some(mut stdin) = plutil_cmd.stdin.take() {
+        stdin.write_all(&security_output.stdout)?;
+    }
+
+    let plutil_output = plutil_cmd.wait_with_output()?;
+
+    if !plutil_output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to extract entitlements"));
+    }
+    println!("Successfully decoded and extracted entitlements to entitlements.plist");
+    println!("Signing app bundle with new provisioning");
+    //resign the build with new provisioning parameters outlined (this is normally done within the build output flow)
+    sign_build(session, &target_os, release)?;
     Ok(())
 }
 
@@ -2260,6 +2298,7 @@ fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
 }
 
 fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &str, udid: &str) -> io::Result<bool> {
+    println!("checking if target device is properly provisioned");
     //obtain the mobile provision file name
     let mobileprovision_file: String;
     let entries = fs::read_dir(app_bundle_path)
@@ -2276,15 +2315,20 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
 
         match matching_files.len() {
             0 => {
+                println!("No provisioning profile found");
                 return Ok(false);
             }
             1 => {
+                println!("Exactly one provisioning profile found");
                 mobileprovision_file = matching_files[0].clone();
             }
             _ => {
+                println!("something weird happened finding the provisioning profile");
                 return Ok(false);
             }
         }
+    // 
+    
     let profile_path_str = format!("{}/{}", &app_bundle_path, &mobileprovision_file);
     let profile_path = Path::new(&profile_path_str);
     //query the mobile provision profile
@@ -2295,7 +2339,6 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
         .arg(profile_path)
         .output()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to execute security command: {}", e)))?;
-
     if !output.status.success() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
@@ -2305,7 +2348,6 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
     //check for an existing device provision
     let xml = String::from_utf8(output.stdout)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Invalid UTF-8 in plist: {}", e)))?;
-
     let key_str = "<key>ProvisionedDevices</key>";
     let Some(key_pos) = xml.find(key_str) else {
         println!("provision profile does not contain valid syntax: <key>ProvisionedDevice</key>");
@@ -2313,7 +2355,6 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
     };
     let start_after_key = key_pos + key_str.len();
     let rest_after_key = &xml[start_after_key..];
-
     let string_open = "<array>";
     let Some(array_pos) = rest_after_key.find(string_open) else {
         println!("provision profile does not contain valid syntax: <array>");
@@ -2321,27 +2362,99 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
     };
     let start_of_array = array_pos + string_open.len();
     let rest_after_open = &rest_after_key[start_of_array..];
-
     let string_close = "</array>";
     let Some(close_pos) = rest_after_open.find(string_close) else {
         println!("provision profile does not contain valid syntax: </array>");
         return Ok(false);
     };
     let array_content = &rest_after_open[..close_pos];
-
-    let device_entry = format!("<string>{}</string>", device_id);
+    let device_entry = format!("<string>{}</string>", udid);
     //check if the profile contains the device id
+    println!("checking if array content: {:?} contains device entry: {:?}", &array_content, &device_entry);
     if array_content.contains(&device_entry) {
         println!("provisioning profile contains the device id...checking device for installation");
         //check that the profile is installed on the device
-        let content = fs::read_to_string(profile_path)?;
-        if let Some(key_pos) = content.find("<key>Name</key>") {
-            if let Some(string_start) = content[key_pos..].find("<string>") {
+        if let Some(key_pos) = xml.find("<key>Name</key>") {
+            if let Some(string_start) = xml[key_pos..].find("<string>") {
                 let start = key_pos + string_start + "<string>".len();
-                if let Some(string_end) = content[start..].find("</string>") {
-                    let profile_name = content[start..start + string_end].trim().to_string();
+                if let Some(string_end) = xml[start..].find("</string>") {
+                    let profile_name = xml[start..start + string_end].trim().to_string();
                     if !profile_name.is_empty() {
-                        //TODO use full path to ideviceprovision
+                        //list the installed provisions
+                        let output = Command::new(format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap()))
+                            .args(["list", "--udid", udid])
+                            .output()?;
+                        if !output.status.success() {
+                            return Err(io::Error::new(io::ErrorKind::Other, "failed to list provisioning profiles: {}",));
+                        }
+                        let profiles = String::from_utf8_lossy(&output.stdout);
+                        if profiles.contains(&profile_name) {
+                            println!("target device is already provisioned");
+                            return Ok(true)
+                        }else{
+                            println!("provisioning profile is not currently installed on the target device");
+                            return Ok(false)
+                        }
+                    }
+                }
+            }
+        }
+        return Err(io::Error::new(io::ErrorKind::Other, "Name not found in provisioning profile: {}",));
+    } else {
+        println!("target device is not provisioned");
+        return Ok(false)
+    }let profile_path_str = format!("{}/{}", &app_bundle_path, &mobileprovision_file);
+    let profile_path = Path::new(&profile_path_str);
+    //query the mobile provision profile
+    let output = Command::new("security")
+        .arg("cms")
+        .arg("-D")
+        .arg("-i")
+        .arg(profile_path)
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to execute security command: {}", e)))?;
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("security command failed: {}", String::from_utf8_lossy(&output.stderr)),
+        ));
+    }
+    //check for an existing device provision
+    let xml = String::from_utf8(output.stdout)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Invalid UTF-8 in plist: {}", e)))?;
+    let key_str = "<key>ProvisionedDevices</key>";
+    let Some(key_pos) = xml.find(key_str) else {
+        println!("provision profile does not contain valid syntax: <key>ProvisionedDevice</key>");
+        return Ok(false);
+    };
+    let start_after_key = key_pos + key_str.len();
+    let rest_after_key = &xml[start_after_key..];
+    let string_open = "<array>";
+    let Some(array_pos) = rest_after_key.find(string_open) else {
+        println!("provision profile does not contain valid syntax: <array>");
+        return Ok(false);
+    };
+    let start_of_array = array_pos + string_open.len();
+    let rest_after_open = &rest_after_key[start_of_array..];
+    let string_close = "</array>";
+    let Some(close_pos) = rest_after_open.find(string_close) else {
+        println!("provision profile does not contain valid syntax: </array>");
+        return Ok(false);
+    };
+    let array_content = &rest_after_open[..close_pos];
+    let device_entry = format!("<string>{}</string>", udid);
+    //check if the profile contains the device id
+    println!("checking if array content: {:?} contains device entry: {:?}", &array_content, &device_entry);
+    if array_content.contains(&device_entry) {
+        println!("provisioning profile contains the device id...checking device for installation");
+        //check that the profile is installed on the device
+        if let Some(key_pos) = xml.find("<key>Name</key>") {
+            if let Some(string_start) = xml[key_pos..].find("<string>") {
+                let start = key_pos + string_start + "<string>".len();
+                if let Some(string_end) = xml[start..].find("</string>") {
+                    let profile_name = xml[start..start + string_end].trim().to_string();
+                    if !profile_name.is_empty() {
+                        //list the installed provisions
                         let output = Command::new(format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap()))
                             .args(["list", "--udid", udid])
                             .output()?;
@@ -2374,14 +2487,14 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
     println!("target device ID: {}", &device_id);
     //check for an existing provisioning profile
     let profile_path_str = &format!("{}/{}/{}/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
-    let provision_required = is_device_provisioned(session, &profile_path_str, &device_id, &udid)?;
-    if provision_required {
+    let device_provisioned = is_device_provisioned(session, &profile_path_str, &device_id, &udid)?;
+    if !device_provisioned {
         //add a new provisioning profile for a macos device
         provision_device(session, udid, &target_os, false)?;
     }
     //deploy to target device
     if target_os == "ios"{
-        println!("deploying to ios device");
+        println!("deploying to ios device: {}", &device_id);
         let output = Command::new("xcrun")
             .args(["devicectl", "device", "install", "app", "--device", &device_id, &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
             .output()
@@ -2390,7 +2503,7 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
             println!("here is the output: {:?}", &output);
             return Err(io::Error::new(io::ErrorKind::Other, "could not install app bundle to IOS device via USB tether: {}",));
         }
-        let bundle_id = get_bundle_id("ios")?;
+        let bundle_id = get_bundle_id(session, "ios")?;
         println!("Deploying bundle id: {} to device: {}", &bundle_id, &device_id);
         let output = Command::new("xcrun")
             .args(["devicectl", "device", "process", "launch", "--device", &device_id, &bundle_id])
@@ -2570,7 +2683,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
                 format!("ios post build failed to move binary: {}", error),
             ));
         }
-        sign_build(session, target_os, release)?;
+        sign_build(session, &target_os, release)?;
         println!("signed ios app bundle: {:?}", output);
     }else if target_os == "ios" && release == true{
         println!("TODO release build for ios");
