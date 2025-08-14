@@ -980,15 +980,6 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
                 sleep(Duration::from_secs(3));
             }
         }
-        //TODO can probably remove this was using for testing
-        //convert the .cer to a .pem
-        // let output = Command::new("openssl")
-        //     .args(["x509", "-in", &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap()), "-inform", "DER", "-out", &format!("{}/development.pem", session.paths.keystore_path.as_ref().unwrap()), "-outform", "PEM"])
-        //     .output()
-        //     .unwrap();
-        // if !output.status.success() {
-        //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to convert the development.cer to development.pem"));
-        // }
         //security import the cert into the keychain
         let output = Command::new("security")
             .args(["import", &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
@@ -996,17 +987,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
             .unwrap();
         if !output.status.success() {
             return Err(io::Error::new(io::ErrorKind::Other, "Failed to import the development.pem to the keychain-db"));
-        }
-        //TODO this may be deprecated and/or causing a signing bug
-        //TODO test if this works with a fresh install without a trusted cert
-        // add the certificate as trusted for code signing
-        // let output = Command::new("security")
-        //     .args(["add-trusted-cert", "-d", "-r", "trustAsRoot", "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap()), &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap())])
-        //     .output()
-        //     .unwrap();
-        // if !output.status.success() {
-        //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to add trusted cert to the development.cer"));
-        // }        
+        }   
         //get the App Developer Worldwide Developer Relations Ceritifcation Authority certificate
         let output = Command::new("curl")
             .args(["-o", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"])
@@ -2280,19 +2261,19 @@ fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
             ));
         }
     }
-    //MACOS side
-    //TODO macos sim
-    //TODO ios sim
-    //TODO android sim
-    //TODO windows sim
-    //TODO ubuntu sim?
-    //todo wasm?
+    //TODO MACOS side
+    //macos sim
+    //ios sim
+    //android sim
+    //windows sim
+    //ubuntu sim?
+    //wasm?
 
-    //UBUNTU SIDE
-    //TODO android sim
-    //TODO windows sim
-    //TODO ubuntu sim?
-    //todo wasm?
+    //TODO UBUNTU SIDE
+    //android sim
+    //windows sim
+    //ubuntu sim?
+    //wasm?
     println!("finished deploying to {} simulator", target_os);
     Ok(())
 }
@@ -2481,27 +2462,27 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
 }
 
 fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
-    //obtain device uuid
-    let udid = get_udid_by_target("iphone")?;
-    let device_id = get_device_identifier()?;
-    println!("target device ID: {}", &device_id);
-    //check for an existing provisioning profile
-    let profile_path_str = &format!("{}/{}/{}/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
-    let device_provisioned = is_device_provisioned(session, &profile_path_str, &device_id, &udid)?;
-    if !device_provisioned {
-        //add a new provisioning profile for a macos device
-        provision_device(session, udid, &target_os, false)?;
-    }
     //deploy to target device
     if target_os == "ios"{
-        println!("deploying to ios device: {}", &device_id);
+        //obtain device uuid
+        let udid = get_udid_by_target("iphone")?;
+        let device_id = get_device_identifier()?;
+        println!("target device UDID: {}", &udid);
+        println!("deploying to ios device ID: {}", &device_id);
+        //check for an existing provisioning profile
+        let profile_path_str = &format!("{}/{}/{}/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
+        let device_provisioned = is_device_provisioned(session, &profile_path_str, &device_id, &udid)?;
+        if !device_provisioned {
+            //add a new provisioning profile for a macos device
+            provision_device(session, udid, &target_os, false)?;
+        }
         let output = Command::new("xcrun")
             .args(["devicectl", "device", "install", "app", "--device", &device_id, &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
             .output()
             .unwrap();
         if !output.status.success() {
             println!("here is the output: {:?}", &output);
-            return Err(io::Error::new(io::ErrorKind::Other, "could not install app bundle to IOS device via USB tether: {}",));
+            return Err(io::Error::new(io::ErrorKind::Other, "could not install app bundle to IOS device via USB tether: {}"));
         }
         let bundle_id = get_bundle_id(session, "ios")?;
         println!("Deploying bundle id: {} to device: {}", &bundle_id, &device_id);
@@ -2510,20 +2491,144 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
             .output()
             .unwrap();
         if !output.status.success() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "could not launch app bundle to IOS device via USB tether: {}",
-            ));
+            return Err(io::Error::new(io::ErrorKind::Other, "could not launch app bundle to IOS device via USB tether"));
         }
     }else if target_os == "android"{
         //TODO android device tether deployment
         println!("TODO android tether deployment");
+        let adb_path = format!("{}/adb", session.paths.platform_tools_path.as_ref().unwrap());
+        if !is_android_device_connected(session, &adb_path){
+            return Err(io::Error::new(io::ErrorKind::Other, "no android device detected, or multiple devices connected"));
+        }
+        println!("one android device detected, deploying app");
+
+        //TODO need to determine the app bundle name and extension programmatically
+        //aapt which will be used for finding adb payload can be found at $HOME/Android/sdk/build-tools/34.0.0/aapt
+        //we can install the apk with `adb install -r /path/to/apk`
+        //we can launc the app with `adb shell am start -n "com.your.bundle.id/.MainActivity"`
+        //we can uninstall with `adb uninstall com.bundle.id`
     }
 
     println!("Successfully deployed to {} device", &target_os);
 
     Ok(())
     
+}
+
+//TODO fix the aapt path & test
+//TODO might need to add a build tools path to the .ramp
+fn get_adb_launch_payload(session: &mut Session, apk_path: &Path) -> Result<String, io::Error> {
+    // Run aapt to dump manifest as text tree
+    let output = Command::new("aapt")
+        .args(["dump", "xmltree", apk_path.to_str().unwrap(), "AndroidManifest.xml"])
+        .output()?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "aapt command failed"));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let reader = BufReader::new(stdout.as_bytes());
+    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+
+    let mut package = None;
+    let mut main_activity = None;
+
+    for line in lines.iter() {
+        // Extract package from root <manifest> attribute
+        if line.trim().starts_with("A: package=") {
+            if let Some(start) = line.find('\"') {
+                if let Some(end) = line[start + 1..].find('\"') {
+                    package = Some(line[start + 1..start + 1 + end].to_string());
+                }
+            }
+        }
+
+        // Find main activity: Look for <intent-filter> with MAIN and LAUNCHER under <activity>
+        if main_activity.is_none() && line.trim().starts_with("E: activity") {
+            let mut in_activity = true;
+            let mut activity_name = None;
+            let mut has_main = false;
+            let mut has_launcher = false;
+
+            // Parse sub-lines for this activity block
+            let activity_idx = lines.iter().position(|l| l == line).unwrap_or(0);
+            for sub_line in lines.iter().skip(activity_idx + 1) {
+                let trim_sub = sub_line.trim();
+                if trim_sub.starts_with("A: android:name") {
+                    if let Some(start) = sub_line.find('\"') {
+                        if let Some(end) = sub_line[start + 1..].find('\"') {
+                            activity_name = Some(sub_line[start + 1..start + 1 + end].to_string());
+                        }
+                    }
+                } else if trim_sub.starts_with("E: intent-filter") {
+                    // Check for MAIN action and LAUNCHER category in this filter
+                    let filter_idx = lines.iter().position(|l| l == sub_line).unwrap_or(0);
+                    for filter_line in lines.iter().skip(filter_idx + 1) {
+                        let trim_filter = filter_line.trim();
+                        if trim_filter.starts_with("E: ") && !trim_filter.starts_with("E: action") && !trim_filter.starts_with("E: category") {
+                            break; // End of this intent-filter
+                        }
+                        if trim_filter.contains("android.intent.action.MAIN") {
+                            has_main = true;
+                        }
+                        if trim_filter.contains("android.intent.category.LAUNCHER") {
+                            has_launcher = true;
+                        }
+                    }
+                } else if trim_sub.starts_with("E: ") {
+                    in_activity = false; // End of activity block
+                    break;
+                }
+            }
+
+            if has_main && has_launcher {
+                if let Some(name) = activity_name {
+                    let full_name = if name.starts_with('.') {
+                        format!("{}{}", package.as_ref().unwrap_or(&String::new()), name)
+                    } else {
+                        name
+                    };
+                    main_activity = Some(full_name);
+                }
+            }
+        }
+
+        if package.is_some() && main_activity.is_some() {
+            break;
+        }
+    }
+
+    let pkg = package.ok_or(io::Error::new(io::ErrorKind::NotFound, "Package not found"))?;
+    let act = main_activity.ok_or(io::Error::new(io::ErrorKind::NotFound, "Main activity not found"))?;
+
+    Ok(format!("-n \"{}/{}\"", pkg, act))
+}
+
+fn is_android_device_connected(session: &mut Session, adb_path: &str) -> bool {
+    println!("adb path: {}", adb_path);
+    let output = match Command::new(adb_path)
+        .arg("devices")
+        .output() {
+        Ok(out) => out,
+        Err(_) => return false,
+    };
+
+    if !output.status.success() {
+        println!("failed to run adb devices");
+        return false;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+
+    // Skip the header line "List of devices attached"
+    let device_lines: Vec<&str> = lines.into_iter()
+        .skip(1) // Skip header
+        .filter(|line| line.trim().ends_with("device")) // Only count authorized "device" status
+        .collect();
+
+    device_lines.len() == 1
 }
 
 //this needs to get called when creating a new project on macos/ios
@@ -2815,10 +2920,10 @@ fn main() -> io::Result<()> {
         // update_icons(&session)?;
 
         // //build the target output build_output(session: &Session, target_os: String, release: bool)
-        build_output(&mut session, "ios".to_string(), false)?;
+        build_output(&mut session, "android".to_string(), false)?;
 
         // // load_simulator(&mut session, "ios".to_string())?;
-        deploy_usb_tether(&mut session, "ios".to_string())?;
+        deploy_usb_tether(&mut session, "android".to_string())?;
     }
 
     //TODOS
