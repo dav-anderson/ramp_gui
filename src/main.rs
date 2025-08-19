@@ -9,6 +9,7 @@ use std::fs::OpenOptions;
 use regex::Regex;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use crate::fs::read_to_string;
 
 struct Paths {
     sdk_path: Option<String>,
@@ -18,6 +19,7 @@ struct Paths {
     rustup_path: Option<String>,
     homebrew_path: Option<String>,
     cmdline_tools_path: Option<String>,
+    build_tools_path: Option<String>,
     sdkmanager_path: Option<String>,
     platform_tools_path: Option<String>,
     platforms_path: Option<String>,
@@ -63,6 +65,7 @@ impl Session {
             rustup_path: None,
             homebrew_path: None,
             cmdline_tools_path: None,
+            build_tools_path: None,
             sdkmanager_path: None,
             platform_tools_path: None,
             platforms_path: None,
@@ -122,6 +125,7 @@ impl Session {
             "rustup_path" => self.paths.rustup_path = Some(file_path.clone()),
             "homebrew_path" => self.paths.homebrew_path = Some(file_path.clone()),
             "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(file_path.clone()),
+            "build_tools_path" => self.paths.build_tools_path = Some(file_path.clone()),
             "sdkmanager_path" => self.paths.sdkmanager_path = Some(file_path.clone()),
             "platform_tools_path" => self.paths.platform_tools_path = Some(file_path.clone()),
             "platforms_path" => self.paths.platforms_path = Some(file_path.clone()),
@@ -191,6 +195,7 @@ impl Session {
                     "rustup_path" => self.paths.rustup_path = Some(value.trim().to_string()),
                     "homebrew_path" => self.paths.homebrew_path = Some(value.trim().to_string()),
                     "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(value.trim().to_string()),
+                    "build_tools_path" => self.paths.build_tools_path = Some(value.trim().to_string()),
                     "sdkmanager_path" => self.paths.sdkmanager_path = Some(value.trim().to_string()),
                     "platform_tools_path" => self.paths.platform_tools_path = Some(value.trim().to_string()),
                     "platforms_path" => self.paths.platforms_path = Some(value.trim().to_string()),
@@ -234,6 +239,10 @@ impl Session {
             "cmdline_tools_path" => Ok(self.paths.cmdline_tools_path
                 .as_ref()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cmdline_tools_path not set"))?
+                .to_string()),
+            "build_tools_path" => Ok(self.paths.build_tools_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "build_tools_path not set"))?
                 .to_string()),
             "sdkmanager_path" => Ok(self.paths.sdkmanager_path
                 .as_ref()
@@ -1117,6 +1126,7 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
     println!("Setting up Android SDK and NDK for {}", session.os);
     session.set_path("sdk_path", format!("{}/Android/sdk", session.home))?;
     session.set_path("cmdline_tools_path", format!("{}/Android/sdk/cmdline-tools", session.home))?;
+    session.set_path("build_tools_path", format!("{}/Android/sdk/build-tools/34.0.0", session.home))?;
     session.set_path("sdkmanager_path", format!("{}/Android/sdk/cmdline-tools/bin/sdkmanager", session.home))?;
     session.set_path("platform_tools_path", format!("{}/Android/sdk/platform-tools", session.home))?;
     session.set_path("platforms_path", format!("{}/platforms/android-{}", format!("{}/Android/sdk", session.home), session.android_platform_version))?;
@@ -1517,25 +1527,25 @@ fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>)
         name
     );
     let capitalized_name = capitalize_first(name);
-    let replacements = vec![("Webgpu", capitalized_name.as_str()), ("webgpu", name)];
+    let replacements = vec![("Ramp", capitalized_name.as_str()), ("ramp", name)];
     //rename default strings in cargo.toml
     replace_strings_in_file(&format!("{}/Cargo.toml", new_path), &replacements)?;
-    //rename dir ios/Webgpu.app
+    //rename dir ios/Ramp.app
     rename_directory(
-        &format!("{}/ios/Webgpu.app", new_path),
+        &format!("{}/ios/Ramp.app", new_path),
         &format!("{}.app", &capitalized_name),
     )?;
-    //rename default strings in ios/Webgpu.app/Info.plist
+    //rename default strings in ios/Ramp.app/Info.plist
     replace_strings_in_file(
         &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
         &replacements,
     )?;
-    //rename dir macos/Webgpu.app
+    //rename dir macos/Ramp.app
     rename_directory(
-        &format!("{}/macos/Webgpu.app", new_path),
+        &format!("{}/macos/Ramp.app", new_path),
         &format!("{}.app", &capitalized_name),
     )?;
-    //rename default strings in macos/Webgpu.app/Contents/Info.plist
+    //rename default strings in macos/Ramp.app/Contents/Info.plist
     replace_strings_in_file(
         &format!("{}/macos/{}.app/Info.plist", new_path, capitalized_name),
         &replacements,
@@ -2500,11 +2510,53 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
         if !is_android_device_connected(session, &adb_path){
             return Err(io::Error::new(io::ErrorKind::Other, "no android device detected, or multiple devices connected"));
         }
-        println!("one android device detected, deploying app");
+        println!("one android device detected");
+        //obtain the apk_name & package value from the Cargo.toml
+        let cargo_toml = read_to_string(format!("{}/{}/Cargo.toml", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap()))?;
+        let mut apk_name = String::new();
+        let mut package_name = String::new();
+        for line in cargo_toml.lines() {
+        let trim = line.trim();
+            if trim.starts_with("apk_name =") {
+                if let Some(start) = trim.find('=') {
+                    let value = &trim[start + 1..].trim();
+                    apk_name = value.trim_matches(|c| c == '"' || c == '\'').to_string();
+                }
+            }else if trim.starts_with("package =") {
+                if let Some(start) = trim.find('=') {
+                    let value = &trim[start + 1..].trim();
+                    package_name = value.trim_matches(|c| c == '"' || c == '\'').to_string();
+                }
+            }
+        }
+        if apk_name.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::Other, "apk_name value not found in cargo.toml"));
+        }
+        if package_name.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::Other, "package value not found in cargo.toml"));
+        }
+        println!("The APK name is: {}", apk_name);
+        println!("The package name is: {}", package_name);
+        //path to the apk
+        let apk_path = format!("{}/{}/target/debug/apk/{}.apk", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &apk_name);
+        println!("apk path: {}", apk_path);
+        //install the apk
+        let output = Command::new(&adb_path)
+            .args(["install", "-r", &apk_path])
+            .output()
+            .unwrap();
+        if !output.status.success() {
+            return Err(io::Error::new(io::ErrorKind::Other, "could not install the apk"));
+        }
+        println!("APK installed!");
+        //TODO obtain the abd_payload which needs the activity name?
+        // let adb_payload = get_adb_launch_payload(session, Path::new(&apk_path))?;
+        // println!("adb payload: {}", adb_payload);
 
-        //TODO need to determine the app bundle name and extension programmatically
-        //aapt which will be used for finding adb payload can be found at $HOME/Android/sdk/build-tools/34.0.0/aapt
-        //we can install the apk with `adb install -r /path/to/apk`
+        //TODO launch the adb payload after valid install
+
+
+        //TODO need to determine the app bundle name and extension programmatically for auto launch
         //we can launc the app with `adb shell am start -n "com.your.bundle.id/.MainActivity"`
         //we can uninstall with `adb uninstall com.bundle.id`
     }
@@ -2515,11 +2567,11 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
     
 }
 
-//TODO fix the aapt path & test
-//TODO might need to add a build tools path to the .ramp
+//TODO "main activity not found", might remove this LLM code
 fn get_adb_launch_payload(session: &mut Session, apk_path: &Path) -> Result<String, io::Error> {
     // Run aapt to dump manifest as text tree
-    let output = Command::new("aapt")
+    let aapt_path = format!("{}/aapt", session.paths.build_tools_path.as_ref().unwrap());
+    let output = Command::new(&aapt_path)
         .args(["dump", "xmltree", apk_path.to_str().unwrap(), "AndroidManifest.xml"])
         .output()?;
 
