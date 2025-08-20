@@ -2909,6 +2909,8 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     //     }
     // } 
     //TODO add support for all other outputs as needed
+
+    //TODO compile windows app.rc for desktop icon, see ramp_template readme
     Ok(())
 }
 
