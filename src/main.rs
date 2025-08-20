@@ -456,6 +456,7 @@ fn install_build_targets(session: &mut Session) -> io::Result<()> {
         "aarch64-apple-ios-sim".to_string(),
         "x86_64-apple-darwin".to_string(),
         "aarch64-apple-darwin".to_string(),
+        "x86_64-pc-windows-gnu".to_string(),
     ];
     let targets: Vec<String> = vec![
         "x86_64-unknown-linux-gnu".to_string(),
@@ -797,6 +798,20 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     if !output.status.success() {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to install libimobiledevice"));
     }
+
+    //install mingw-w64
+    let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
+    .args(["install", "mingw-w64"])
+    .output()?;
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install mingw-w64 windows linker"));
+    }
+
+    //add mingw-w64 to the global .cargo config
+    let config_path = format!("{}/.cargo/config.toml", get_user_home()?);
+    let mut file = File::create(config_path)?;
+    let config_payload = format!("[target.x86_64-pc-windows-gnu]\nlinker = \"{}/x86_64-w64-mingw32-gcc\"\n", session.paths.homebrew_path.as_ref().unwrap());
+    file.write_all(config_payload.as_bytes())?;
 
     println!("MacOS & IOS toolchain installation complete");
     Ok(())
@@ -2753,6 +2768,36 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             format!("No Cargo.toml found in {}", project_path),
         ));
     }
+    //map target_os to output path
+    //TODO need to update when building for release
+    let output_path = match target_os.as_str() {
+        "windows" => format!(
+            "{}/target/x86_64-pc-windows-gnu/debug/{}.exe", &project_path, session.current_project.as_ref().unwrap()
+        ),
+        //TODO fix this for when running on both linux & Macos
+        "linux" => if session.os.as_str() == "linux" {format!(
+                "{}/target/debug/TODO NEED TO FIX THIS", &project_path, 
+            )} else {format!("TODO need to fix this")},
+        "wasm" => format!(
+            "{}/target/wasm32-unknown-unknown/debug/main.wasm", &project_path
+        ),
+        "android" => format!(
+            "{}/target/debug/apk/{}.apk", &project_path, capitalize_first(session.current_project.as_ref().unwrap())
+        ),
+        "ios" => format!(
+            "{}/target/aarch64-apple-ios/debug/{} ...if you are looking for the full app bundle check the ramp/{}/ios directory", &project_path, session.current_project.as_ref().unwrap(), session.current_project.as_ref().unwrap()
+        ),
+        //TODO fix this for when running on linux
+        "macos" => if session.os.as_str() == "macos" {format!(
+            "{}/target/debug/{}", &project_path, session.current_project.as_ref().unwrap()
+        )}  else {format!("TODO need to fix this")},
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Unsupported target OS: {}", target_os),
+            ))
+        }
+    };
 
     // Map target_os to Cargo command
     let cargo_args = match target_os.as_str() {
@@ -2760,6 +2805,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "build --target x86_64-pc-windows-gnu{}",
             if release { " --release " } else { "" }
         ),
+        //TODO need to fix this when running on macos and building for linux
         "linux" => format!("build{}", if release { " --release " } else { "" }),
         "wasm" => format!(
             "build --lib --target wasm32-unknown-unknown{}",
@@ -2773,7 +2819,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "build --target aarch64-apple-ios{}",
             if release { " --release " } else { "" }
         ),
-        "ios_sim" => "build --target aarch64-apple-ios-sim".to_string(),
+        // "ios_sim" => "build --target aarch64-apple-ios-sim".to_string(),
         //TODO need to support lipo outputs for combined chipset architecture
         "macos" => format!(
             "build{}",
@@ -2824,6 +2870,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
         target_os,
         if release { "release" } else { "debug" }
     );
+    println!("The binary can be found at {}", &output_path);
 
     //post build house keeping
     if target_os == "ios" && release == false {
@@ -2845,21 +2892,22 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     }else if target_os == "ios" && release == true{
         println!("TODO release build for ios");
         //TODO copy if exists /target/aarch64-apple-ios/release/appname to ios/Appname.app/
-    }else if target_os == "ios_sim" {
-        //TODO create a seperate app bundle for simulator?
-        println!("performing ios sim post build...");
-        let output = Command::new("cp")
-        .args([&format!("{}/target/aarch64-apple-ios-sim/debug/{}", project_path, session.current_project.as_ref().unwrap()), &format!("{}/ios/{}.app/", project_path, capitalize_first(session.current_project.as_ref().unwrap()))])
-        .output()
-        .unwrap();
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("ios_sim post build failed: {}", error),
-            ));
-        }
-    } 
+    }
+    // else if target_os == "ios_sim" {
+    //     //TODO create a seperate app bundle for simulator?
+    //     println!("performing ios sim post build...");
+    //     let output = Command::new("cp")
+    //     .args([&format!("{}/target/aarch64-apple-ios-sim/debug/{}", project_path, session.current_project.as_ref().unwrap()), &format!("{}/ios/{}.app/", project_path, capitalize_first(session.current_project.as_ref().unwrap()))])
+    //     .output()
+    //     .unwrap();
+    //     if !output.status.success() {
+    //         let error = String::from_utf8_lossy(&output.stderr);
+    //         return Err(io::Error::new(
+    //             io::ErrorKind::Other,
+    //             format!("ios_sim post build failed: {}", error),
+    //         ));
+    //     }
+    // } 
     //TODO add support for all other outputs as needed
     Ok(())
 }
@@ -2972,10 +3020,10 @@ fn main() -> io::Result<()> {
         // update_icons(&session)?;
 
         // //build the target output build_output(session: &Session, target_os: String, release: bool)
-        build_output(&mut session, "android".to_string(), false)?;
+        build_output(&mut session, "windows".to_string(), false)?;
 
         // // load_simulator(&mut session, "ios".to_string())?;
-        deploy_usb_tether(&mut session, "android".to_string())?;
+        // deploy_usb_tether(&mut session, "android".to_string())?;
     }
 
     //TODOS
