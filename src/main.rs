@@ -817,23 +817,23 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     Ok(())
 }
 
-fn install_simulators(session: &Session) -> io::Result<()>{
-    if session.os.as_str() == "macos"{
-        //run xcrun simctl list devices to initialize
-        println!("setting up simulators");
-        println!("setting up xcrun simctl");
-        let output = Command::new("sudo")
-        .args(["xcrun", "simctl", "list", "devices"])
-        .output()
-        .unwrap();
-        println!("result: {:?}", output);
-        if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "Failed to initialize xcode simulator"));
-        }
-    }
+// fn install_simulators(session: &Session) -> io::Result<()>{
+//     if session.os.as_str() == "macos"{
+//         //run xcrun simctl list devices to initialize
+//         println!("setting up simulators");
+//         println!("setting up xcrun simctl");
+//         let output = Command::new("sudo")
+//         .args(["xcrun", "simctl", "list", "devices"])
+//         .output()
+//         .unwrap();
+//         println!("result: {:?}", output);
+//         if !output.status.success() {
+//             return Err(io::Error::new(io::ErrorKind::Other, "Failed to initialize xcode simulator"));
+//         }
+//     }
     
-    Ok(())
-}
+//     Ok(())
+// }
 
 fn setup_keychain(session: &mut Session) -> io::Result<()>{
     //TODO this currently creates a debug signing certificate only, different certificate properties must be configured for release on apple's developer website
@@ -2255,53 +2255,53 @@ fn get_device_identifier() -> io::Result<String> {
 }
 
 
-fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
-    println!("load_simulator");
-    if target_os == "ios" {
-        //TODO make sure this never tried to boot a non sim binary
-        println!("deploying to {} simulator", target_os);
-        //TODO check if simulator is already running first
-        //open ios simuator
-        let output = Command::new("open")
-            .args(["-a", "simulator"])
-            .output()
-            .unwrap();
-        if !output.status.success(){
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "could not open IOS simulator: {}",
-            ));
-        }
-        //TODO create a device, need to build out support here
-        //boot & install the .app bundle to the simulator
-        let output = Command::new("xcrun")
-            .args(["simctl", "install", "booted", &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
-            .output()
-            .unwrap();
+// fn load_simulator(session: &Session, target_os: String) -> io::Result<()>{
+//     println!("load_simulator");
+//     if target_os == "ios" {
+//         //TODO make sure this never tried to boot a non sim binary
+//         println!("deploying to {} simulator", target_os);
+//         //TODO check if simulator is already running first
+//         //open ios simuator
+//         let output = Command::new("open")
+//             .args(["-a", "simulator"])
+//             .output()
+//             .unwrap();
+//         if !output.status.success(){
+//             return Err(io::Error::new(
+//                 io::ErrorKind::Other,
+//                 "could not open IOS simulator: {}",
+//             ));
+//         }
+//         //TODO create a device, need to build out support here
+//         //boot & install the .app bundle to the simulator
+//         let output = Command::new("xcrun")
+//             .args(["simctl", "install", "booted", &format!("{}/{}/ios/{}.app", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), capitalize_first(session.current_project.as_ref().unwrap()))])
+//             .output()
+//             .unwrap();
         
-        if !output.status.success(){
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "could not deploy to IOS simulator: {}",
-            ));
-        }
-    }
-    //TODO MACOS side
-    //macos sim
-    //ios sim
-    //android sim
-    //windows sim
-    //ubuntu sim?
-    //wasm?
+//         if !output.status.success(){
+//             return Err(io::Error::new(
+//                 io::ErrorKind::Other,
+//                 "could not deploy to IOS simulator: {}",
+//             ));
+//         }
+//     }
+//     //TODO MACOS side
+//     //macos sim
+//     //ios sim
+//     //android sim
+//     //windows sim
+//     //ubuntu sim?
+//     //wasm?
 
-    //TODO UBUNTU SIDE
-    //android sim
-    //windows sim
-    //ubuntu sim?
-    //wasm?
-    println!("finished deploying to {} simulator", target_os);
-    Ok(())
-}
+//     //TODO UBUNTU SIDE
+//     //android sim
+//     //windows sim
+//     //ubuntu sim?
+//     //wasm?
+//     println!("finished deploying to {} simulator", target_os);
+//     Ok(())
+// }
 
 fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &str, udid: &str) -> io::Result<bool> {
     println!("checking if target device is properly provisioned");
@@ -2768,45 +2768,68 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             format!("No Cargo.toml found in {}", project_path),
         ));
     }
-    //map target_os to output path
+    //map the build target to an output path
+    let mut output_path = String::new();
+    //building for debug
+    if !release{
+        output_path = match target_os.as_str() {
+            "windows" => format!(
+                "{}/target/x86_64-pc-windows-gnu/debug/{}.exe", &project_path, session.current_project.as_ref().unwrap()
+            ),
+            //TODO fix this for when running on both linux & Macos
+            "linux" => if session.os.as_str() == "linux" {format!(
+                    "{}/target/debug/TODO NEED TO FIX THIS", &project_path, 
+                )} else {format!(
+                    "TODO need to fix this when building for linux on macos"
+                )},
+            "wasm" => format!(
+                "{}/target/wasm32-unknown-unknown/debug/main.wasm", &project_path
+            ),
+            "android" => format!(
+                "{}/target/debug/apk/{}.apk", &project_path, capitalize_first(session.current_project.as_ref().unwrap())
+            ),
+            "ios" => if session.os.as_str() == "macos" {format!(
+                "{}/target/aarch64-apple-ios/debug/{} ...if you are looking for the full app bundle check the ramp/{}/ios directory", &project_path, session.current_project.as_ref().unwrap(), session.current_project.as_ref().unwrap()
+            )} else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Unsupported target OS: {}", target_os),
+                ))
+            },
+            "macos" => if session.os.as_str() == "macos" {format!(
+                "{}/target/debug/{}", &project_path, session.current_project.as_ref().unwrap()
+                )}  else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("Unsupported target OS: {}", target_os),
+                    ))
+                },
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Unsupported target OS: {}", target_os),
+                ))
+            }
+        };
     //TODO need to update when building for release
-    let output_path = match target_os.as_str() {
-        "windows" => format!(
-            "{}/target/x86_64-pc-windows-gnu/debug/{}.exe", &project_path, session.current_project.as_ref().unwrap()
-        ),
-        //TODO fix this for when running on both linux & Macos
-        "linux" => if session.os.as_str() == "linux" {format!(
-                "{}/target/debug/TODO NEED TO FIX THIS", &project_path, 
-            )} else {format!("TODO need to fix this")},
-        "wasm" => format!(
-            "{}/target/wasm32-unknown-unknown/debug/main.wasm", &project_path
-        ),
-        "android" => format!(
-            "{}/target/debug/apk/{}.apk", &project_path, capitalize_first(session.current_project.as_ref().unwrap())
-        ),
-        "ios" => format!(
-            "{}/target/aarch64-apple-ios/debug/{} ...if you are looking for the full app bundle check the ramp/{}/ios directory", &project_path, session.current_project.as_ref().unwrap(), session.current_project.as_ref().unwrap()
-        ),
-        //TODO fix this for when running on linux
-        "macos" => if session.os.as_str() == "macos" {format!(
-            "{}/target/debug/{}", &project_path, session.current_project.as_ref().unwrap()
-        )}  else {format!("TODO need to fix this")},
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("Unsupported target OS: {}", target_os),
-            ))
-        }
-    };
+    //building for release
+    } else {
+        output_path = format!("TODO output paths for release builds");
+    }
+   
 
-    // Map target_os to Cargo command
+    // Map the build target to a Cargo command payload
     let cargo_args = match target_os.as_str() {
         "windows" => format!(
             "build --target x86_64-pc-windows-gnu{}",
             if release { " --release " } else { "" }
         ),
-        //TODO need to fix this when running on macos and building for linux
-        "linux" => format!("build{}", if release { " --release " } else { "" }),
+        "linux" => if session.os.as_str() == "linux" {format!(
+            "build{}", if release { " --release " } else { "" }
+            //TODO need to fix this when running on macos and building for linux
+            )} else {format!(
+                "build --target <placeholder>{}", if release { " --release " } else { "" }
+            )},
         "wasm" => format!(
             "build --lib --target wasm32-unknown-unknown{}",
             if release { " --release " } else { "" }
@@ -2873,28 +2896,46 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     println!("The binary can be found at {}", &output_path);
 
     //post build house keeping
-    if target_os == "ios" && release == false {
-        println!("performing ios post build...");
-        //move the binary into the ios app bundle
-        let output = Command::new("cp")
-        .args([&format!("{}/target/aarch64-apple-ios/debug/{}", project_path, session.current_project.as_ref().unwrap()), &format!("{}/ios/{}.app/", project_path, capitalize_first(session.current_project.as_ref().unwrap()))])
-        .output()
-        .unwrap();
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("ios post build failed to move binary: {}", error),
-            ));
+    //debug post build
+    if !release{
+        if target_os == "ios"{
+            println!("performing ios post build...");
+            //move the binary into the ios app bundle
+            let output = Command::new("cp")
+            .args([&format!("{}/target/aarch64-apple-ios/debug/{}", project_path, session.current_project.as_ref().unwrap()), &format!("{}/ios/{}.app/", project_path, capitalize_first(session.current_project.as_ref().unwrap()))])
+            .output()
+            .unwrap();
+            if !output.status.success() {
+                let error = String::from_utf8_lossy(&output.stderr);
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("ios post build failed to move binary: {}", error),
+                ));
+            }
+            sign_build(session, &target_os, release)?;
+            println!("post build complete; resigned ios app bundle: {:?}", output);
+        }else if target_os == "android" {
+            println!("TODO android debug postbuild");
+        }else if target_os == "windows" {
+            println!("TODO windows debug postbuild");
+            //TODO windows post build
+            //icons & app bundle
+        }else if target_os == "macos" {
+            println!("TODO macos debug postbuild");
+            //TODO macos post build
+            //combine chipset architecture
+            //icons and app bundle 
+        }else if target_os == "wasm"{
+            println!("TODO wasm debug postbuild");
+        }else if target_os == "linux"{
+            println!("TODO linux debug postbuild");
         }
-        sign_build(session, &target_os, release)?;
-        println!("signed ios app bundle: {:?}", output);
-    }else if target_os == "ios" && release == true{
-        println!("TODO release build for ios");
-        //TODO copy if exists /target/aarch64-apple-ios/release/appname to ios/Appname.app/
+    //release post build
+    } else {
+        println!("TODO post build for release");
     }
+    
     // else if target_os == "ios_sim" {
-    //     //TODO create a seperate app bundle for simulator?
     //     println!("performing ios sim post build...");
     //     let output = Command::new("cp")
     //     .args([&format!("{}/target/aarch64-apple-ios-sim/debug/{}", project_path, session.current_project.as_ref().unwrap()), &format!("{}/ios/{}.app/", project_path, capitalize_first(session.current_project.as_ref().unwrap()))])
@@ -2908,7 +2949,6 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     //         ));
     //     }
     // } 
-    //TODO add support for all other outputs as needed
 
     //TODO compile windows app.rc for desktop icon, see ramp_template readme
     Ok(())
@@ -3030,16 +3070,18 @@ fn main() -> io::Result<()> {
 
     //TODOS
 
-    //test that all app icons are properly removed and recreated after an update
-    //signing keys and dev cert management
-    
+    //update the ramp_template with missing file architecture
+    //programmatically introduce xcode frameworks as required by pelican ui on new template instances
+
+    //test that all app icons are properly removed and recreated after an update    
 
     //MACOS
-    //set up/config key signers & dev certs
-    //deploy via usb tether for ios and android
-    //deploy to simulators for every build output
+    //fix windows post build 
     //fix ubuntu output compatability (see notes in install function)
+    //linux post build?
     //lipo outputs for combined chipset architectures for ios simulator and macos release
+    //set up/config key signers & dev certs for releases
+
 
     //LINUX
     //start to finish comb through
@@ -3048,10 +3090,14 @@ fn main() -> io::Result<()> {
     //discard any .zsh or .bshrc persistence
     //refactor all sudo requirements outside of the -install flag, consider a .deb install script that calls sudo with an -install flag
     //setup/config key signers
-    //BUILD for simulators, deploy simulator, hot load over a usb
+    //hot load android over a usb
 
 
     //WISHLIST
+
+    //signing keys and dev cert management tools
+
+    //simulators for every build output
 
     //gracefully intercept and handle errors where the user's OS is out of date (particularly in the case of MacOS)
 
