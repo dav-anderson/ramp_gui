@@ -807,7 +807,21 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to install mingw-w64 windows linker"));
     }
 
-    //add mingw-w64 to the global .cargo config
+    //TODO install macos-cross-toolchains??
+
+
+    //TODO install aarch64-unknown-linux-gnu? this is not working...
+    let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
+    .args(["install", "aarch64-unknown-linux-gnu"])
+    .output()?;
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install aarch64-unknown-linux-gnu linker"));
+    }
+
+    //TODO install x86_64-unknown-linux-gnu?
+
+    //add mingw-w64 linker to the global .cargo config
+    //TODO add aarch64-unknown-linux-gnu linker to the global .cargo config && x86_64-unknown-linux-gnu???
     let config_path = format!("{}/.cargo/config.toml", get_user_home()?);
     let mut file = File::create(config_path)?;
     let config_payload = format!("[target.x86_64-pc-windows-gnu]\nlinker = \"{}/x86_64-w64-mingw32-gcc\"\n", session.paths.homebrew_path.as_ref().unwrap());
@@ -2776,11 +2790,11 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "windows" => format!(
                 "{}/target/x86_64-pc-windows-gnu/debug/{}.exe", &project_path, session.current_project.as_ref().unwrap()
             ),
-            //TODO fix this for when running on both linux & Macos
+            //TODO fix this for when running on linux & double check correctness for Macos
             "linux" => if session.os.as_str() == "linux" {format!(
                     "{}/target/debug/TODO NEED TO FIX THIS", &project_path, 
                 )} else {format!(
-                    "TODO need to fix this when building for linux on macos"
+                    "{}/target/aarch64-unknown-linux-gnu/debug/{}", &project_path, session.current_project.as_ref().unwrap()
                 )},
             "wasm" => format!(
                 "{}/target/wasm32-unknown-unknown/debug/main.wasm", &project_path
@@ -2828,7 +2842,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "build{}", if release { " --release " } else { "" }
             //TODO need to fix this when running on macos and building for linux
             )} else {format!(
-                "build --target <placeholder>{}", if release { " --release " } else { "" }
+                "build --target aarch64-unknown-linux-gnu{}", if release { " --release " } else { "" }
             )},
         "wasm" => format!(
             "build --lib --target wasm32-unknown-unknown{}",
