@@ -16,6 +16,7 @@ struct Paths {
     ndk_path: Option<String>,
     cargo_path: Option<String>,
     cargo_apk_path: Option<String>,
+    zigbuild_path: Option<String>,
     rustup_path: Option<String>,
     homebrew_path: Option<String>,
     cmdline_tools_path: Option<String>,
@@ -62,6 +63,7 @@ impl Session {
             ndk_path: None,
             cargo_path: None,
             cargo_apk_path: None,
+            zigbuild_path: None,
             rustup_path: None,
             homebrew_path: None,
             cmdline_tools_path: None,
@@ -122,6 +124,7 @@ impl Session {
             "ndk_path" => self.paths.ndk_path = Some(file_path.clone()),
             "cargo_path" => self.paths.cargo_path = Some(file_path.clone()),
             "cargo_apk_path" => self.paths.cargo_apk_path = Some(file_path.clone()),
+            "zigbuild_path" => self.paths.zigbuild_path = Some(file_path.clone()),
             "rustup_path" => self.paths.rustup_path = Some(file_path.clone()),
             "homebrew_path" => self.paths.homebrew_path = Some(file_path.clone()),
             "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(file_path.clone()),
@@ -192,6 +195,7 @@ impl Session {
                     "ndk_path" => self.paths.ndk_path = Some(value.trim().to_string()),
                     "cargo_path" => self.paths.cargo_path = Some(value.trim().to_string()),
                     "cargo_apk_path" => self.paths.cargo_apk_path = Some(value.trim().to_string()),
+                    "zigbuild_path" => self.paths.zigbuild_path = Some(value.trim().to_string()),
                     "rustup_path" => self.paths.rustup_path = Some(value.trim().to_string()),
                     "homebrew_path" => self.paths.homebrew_path = Some(value.trim().to_string()),
                     "cmdline_tools_path" => self.paths.cmdline_tools_path = Some(value.trim().to_string()),
@@ -227,6 +231,10 @@ impl Session {
             "cargo_apk_path" => Ok(self.paths.cargo_apk_path
                 .as_ref()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cargo_apk_path not set"))?
+                .to_string()),
+            "zigbuild_path" => Ok(self.paths.zigbuild_path
+                .as_ref()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "zigbuild_path not set"))?
                 .to_string()),
             "rustup_path" => Ok(self.paths.rustup_path
                 .as_ref()
@@ -791,7 +799,7 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
         std::process::exit(1);
     }
 
-    //install libimobiledevice
+    //brew install libimobiledevice
     let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
         .args(["install", "libimobiledevice"])
         .output()?;
@@ -807,17 +815,40 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to install mingw-w64 windows linker"));
     }
 
-    //TODO install macos-cross-toolchains??
+    // Install zigbuild
+    println!("Installing cargo-zigbuild...");
+    let install_output = Command::new(session.get_path("cargo_path")?)
+        .args(&["install", "--locked", "cargo-zigbuild"])
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()?;
+    if !install_output.status.success() {
+        println!("cargo install stderr: {}", String::from_utf8_lossy(&install_output.stderr));
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install cargo-zigbuild"));
+    }
+    println!("cargo-zigbuild installed successfully.");
 
+    //set the zigbuild path
+    session.set_path("zigbuild_path", format!("{}/.cargo/bin/cargo-zigbuild", session.home))?;
 
-    //TODO install aarch64-unknown-linux-gnu? this is not working...
+    //brew install zig
     let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
-    .args(["install", "aarch64-unknown-linux-gnu"])
+    .args(["install", "zig"])
     .output()?;
     if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install aarch64-unknown-linux-gnu linker"));
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install zig"));
     }
 
+    //DEPRECATED
+    //TODO install aarch64-unknown-linux-gnu? this is not working...
+    // let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
+    // .args(["install", "aarch64-unknown-linux-gnu"])
+    // .output()?;
+    // if !output.status.success() {
+    //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to install aarch64-unknown-linux-gnu linker"));
+    // }
+
+    //DEPRECATED
     //TODO install x86_64-unknown-linux-gnu?
 
     //add mingw-w64 linker to the global .cargo config
@@ -1351,7 +1382,7 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
         // Install cargo-apk
         println!("Installing cargo-apk...");
         let install_output = Command::new(session.get_path("cargo_path")?)
-            .args(&["install", "cargo-apk"])
+            .args(&["install", "--locked", "cargo-apk"])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()?;
@@ -2790,9 +2821,10 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "windows" => format!(
                 "{}/target/x86_64-pc-windows-gnu/debug/{}.exe", &project_path, session.current_project.as_ref().unwrap()
             ),
-            //TODO fix this for when running on linux & double check correctness for Macos
+            //TODO fix running on linux
             "linux" => if session.os.as_str() == "linux" {format!(
                     "{}/target/debug/TODO NEED TO FIX THIS", &project_path, 
+                    //running on mac
                 )} else {format!(
                     "{}/target/aarch64-unknown-linux-gnu/debug/{}", &project_path, session.current_project.as_ref().unwrap()
                 )},
@@ -2872,7 +2904,11 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
 
     // Execute cargo build
     let cargo_command = format!("{} {}", session.get_path("cargo_path")?, cargo_args);
+    let current_path = env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", session.paths.homebrew_path.as_ref().unwrap(), current_path);
+    println!("building for {} on {}", &target_os, session.os);
     let output = if target_os.as_str() == "android" {
+                    //building for android
                     Command::new("bash")
                     .arg("-c")
                     .arg(&cargo_command)
@@ -2884,7 +2920,21 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
                     .stdout(Stdio::inherit()) // Show build output
                     .stderr(Stdio::inherit())
                     .output()?
-                } else{
+                //building for linux on macos
+                } else if session.os == "macos" && target_os.as_str() == "linux" {
+                    println!("FIRING");
+                    Command::new("bash")
+                    .arg("-c")
+                    //insert path to zigbuild
+                    .arg(format!("{} {}", session.get_path("zigbuild_path")?, &cargo_args))
+                    .current_dir(project_dir) // Set working directory
+                    //provide the temp environment path for zig
+                    .env("PATH", new_path)                
+                    .stdout(Stdio::inherit()) // Show build output
+                    .stderr(Stdio::inherit())
+                    .output()?
+                //all other build cases
+                } else {
                     Command::new("bash")
                     .arg("-c")
                     .arg(&cargo_command)
@@ -3075,8 +3125,8 @@ fn main() -> io::Result<()> {
         // //format the icon.png in assets/resources/icons across all outputs
         // update_icons(&session)?;
 
-        // //build the target output build_output(session: &Session, target_os: String, release: bool)
-        build_output(&mut session, "windows".to_string(), false)?;
+        // //build the target output (session: &Session, target_os: String, release: bool)
+        build_output(&mut session, "linux".to_string(), false)?;
 
         // // load_simulator(&mut session, "ios".to_string())?;
         // deploy_usb_tether(&mut session, "android".to_string())?;
