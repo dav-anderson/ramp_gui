@@ -800,7 +800,7 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     }
 
     //brew install libimobiledevice
-    let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
+    let output = Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
         .args(["install", "libimobiledevice"])
         .output()?;
     if !output.status.success() {
@@ -808,7 +808,7 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     }
 
     //install mingw-w64
-    let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
+    let output = Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
     .args(["install", "mingw-w64"])
     .output()?;
     if !output.status.success() {
@@ -832,30 +832,17 @@ fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     session.set_path("zigbuild_path", format!("{}/.cargo/bin/cargo-zigbuild", session.home))?;
 
     //brew install zig
-    let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
+    let output = Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
     .args(["install", "zig"])
     .output()?;
     if !output.status.success() {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to install zig"));
     }
 
-    //DEPRECATED
-    //TODO install aarch64-unknown-linux-gnu? this is not working...
-    // let output = Command::new(format!("{}/brew", session.paths.homebrew_path.as_ref().unwrap()))
-    // .args(["install", "aarch64-unknown-linux-gnu"])
-    // .output()?;
-    // if !output.status.success() {
-    //     return Err(io::Error::new(io::ErrorKind::Other, "Failed to install aarch64-unknown-linux-gnu linker"));
-    // }
-
-    //DEPRECATED
-    //TODO install x86_64-unknown-linux-gnu?
-
     //add mingw-w64 linker to the global .cargo config
-    //TODO add aarch64-unknown-linux-gnu linker to the global .cargo config && x86_64-unknown-linux-gnu???
     let config_path = format!("{}/.cargo/config.toml", get_user_home()?);
     let mut file = File::create(config_path)?;
-    let config_payload = format!("[target.x86_64-pc-windows-gnu]\nlinker = \"{}/x86_64-w64-mingw32-gcc\"\n", session.paths.homebrew_path.as_ref().unwrap());
+    let config_payload = format!("[target.x86_64-pc-windows-gnu]\nlinker = \"{}/x86_64-w64-mingw32-gcc\"\n", session.get_path("homebrew_path")?);
     file.write_all(config_payload.as_bytes())?;
 
     println!("MacOS & IOS toolchain installation complete");
@@ -887,7 +874,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         //check if keychain is locked, if so, unlock
         loop{
             let output = Command::new("security")
-                .args(["show-keychain-info", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+                .args(["show-keychain-info", &format!("{}/login.keychain-db", session.get_path("keystore_path")?)])
                 .output()
                 .unwrap();
             
@@ -946,7 +933,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
             },
         }
         //check if the keypath exists, if not generate a new key
-        let key_path = format!("{}/ramp.pem", session.paths.keystore_path.as_ref().unwrap());
+        let key_path = format!("{}/ramp.pem", session.get_path("keystore_path")?);
         if !Path::new(&key_path).exists() {
             println!("no private key found, generating new key");
              //generate the signing key
@@ -966,7 +953,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
             }
             //security import the private key into the keychain
             let output = Command::new("security")
-            .args(["import", &format!("{}/ramp.pem", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap()), "-T", "/usr/bin/codesign"])
+            .args(["import", &format!("{}/ramp.pem", session.get_path("keystore_path")?), "-k", &format!("{}/login.keychain-db", session.get_path("keystore_path")?), "-T", "/usr/bin/codesign"])
             .output()
             .unwrap();
             if !output.status.success() {
@@ -974,7 +961,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
             }
         }else {println!("ramp.pem already exists");}
         //check if the CSR exists, if not generate a new CSR
-        let csr_path = format!("{}/ramp.csr", session.paths.keystore_path.as_ref().unwrap());
+        let csr_path = format!("{}/ramp.csr", session.get_path("keystore_path")?);
         if !Path::new(&csr_path).exists() {
             let mut subject = String::new();
             if org == "" {
@@ -1015,7 +1002,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }       
         //open the file explorer to show the CSR
         let output = Command::new("open")
-            .arg(session.paths.keystore_path.as_ref().unwrap())
+            .arg(session.get_path("keystore_path")?)
             .output()
             .unwrap();
         if !output.status.success() {
@@ -1034,7 +1021,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
             if Path::new(&cert_download).exists() {
                 //Copy the cert to the keychain
                 let output = Command::new("mv")
-                    .args([&cert_download, session.paths.keystore_path.as_ref().unwrap()])
+                    .args([&cert_download, &session.get_path("keystore_path")?])
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null())
                     .output()
@@ -1051,7 +1038,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }
         //security import the cert into the keychain
         let output = Command::new("security")
-            .args(["import", &format!("{}/development.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+            .args(["import", &format!("{}/development.cer", session.get_path("keystore_path")?), "-k", &format!("{}/login.keychain-db", session.get_path("keystore_path")?)])
             .output()
             .unwrap();
         if !output.status.success() {
@@ -1059,7 +1046,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }   
         //get the App Developer Worldwide Developer Relations Ceritifcation Authority certificate
         let output = Command::new("curl")
-            .args(["-o", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"])
+            .args(["-o", &format!("{}/AppleWWDRCA.cer", session.get_path("keystore_path")?), "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer"])
             .output()
             .unwrap();
         if !output.status.success() {
@@ -1067,7 +1054,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }  
         //add the apple Developer worldwide relations cert to the security chain
         let output = Command::new("security")
-        .args(["import", &format!("{}/AppleWWDRCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+        .args(["import", &format!("{}/AppleWWDRCA.cer", session.get_path("keystore_path")?), "-k", &format!("{}/login.keychain-db", session.get_path("keystore_path")?)])
         .output()
         .unwrap();
         println!("AppleWWDRCA.cer import output: {:?}", output);
@@ -1076,7 +1063,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }
         //get the App Developer Worldwide Developer Relations Ceritifcation Authority certificate
         let output = Command::new("curl")
-        .args(["-o", &format!("{}/AppleRootCA.cer", session.paths.keystore_path.as_ref().unwrap()), "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer"])
+        .args(["-o", &format!("{}/AppleRootCA.cer", session.get_path("keystore_path")?), "https://www.apple.com/certificateauthority/AppleRootCA-G3.cer"])
         .output()
         .unwrap();
         if !output.status.success() {
@@ -1084,7 +1071,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }  
         //add the apple Root CA cert to the security chain
         let output = Command::new("security")
-        .args(["import", &format!("{}/AppleRootCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+        .args(["import", &format!("{}/AppleRootCA.cer", session.get_path("keystore_path")?), "-k", &format!("{}/login.keychain-db", session.get_path("keystore_path")?)])
         .output()
         .unwrap();
         println!("AppleRootCA.cer import output: {:?}", output);
@@ -1093,7 +1080,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }
         //Get the Developer ID CA
         let output = Command::new("curl")
-        .args(["-o", &format!("{}/AppleDevIDCA.cer", session.paths.keystore_path.as_ref().unwrap()), "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer"])
+        .args(["-o", &format!("{}/AppleDevIDCA.cer", session.get_path("keystore_path")?), "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer"])
         .output()
         .unwrap();
         if !output.status.success() {
@@ -1101,7 +1088,7 @@ fn setup_keychain(session: &mut Session) -> io::Result<()>{
         }  
         //add the apple Root CA cert to the security chain
         let output = Command::new("security")
-        .args(["import", &format!("{}/AppleDevIDCA.cer", session.paths.keystore_path.as_ref().unwrap()), "-k", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+        .args(["import", &format!("{}/AppleDevIDCA.cer", session.get_path("keystore_path")?), "-k", &format!("{}/login.keychain-db", session.get_path("keystore_path")?)])
         .output()
         .unwrap();
         println!("AppleDevIDCA.cer import output: {:?}", output);
@@ -1123,7 +1110,7 @@ fn sign_build(session: &mut Session, target_os: &str, release: bool) -> io::Resu
         //check if keychain is locked, if so, unlock
         loop{
             let output = Command::new("security")
-                .args(["show-keychain-info", &format!("{}/login.keychain-db", session.paths.keystore_path.as_ref().unwrap())])
+                .args(["show-keychain-info", &format!("{}/login.keychain-db", session.get_path("keystore_path")?)])
                 .output()
                 .unwrap();
             
@@ -2157,7 +2144,7 @@ fn provision_device(session: &mut Session, udid: String, target_os: &String, rel
     }
     //install the profile to the device with the UDID and ilibmobiledevice
     println!("installing provisioning profile to the target device");
-    let ilibimobile_bin = format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap());
+    let ilibimobile_bin = format!("{}/ideviceprovision", session.get_path("homebrew_path")?);
     println!("ideviceprovision path: {}", &ilibimobile_bin);
     let mobile_provision_path = format!("{}/{}", &mp_destination, &mobileprovision_file);
     println!("Mobile provision path: {}", &mobile_provision_path);
@@ -2348,7 +2335,7 @@ fn get_device_identifier() -> io::Result<String> {
 //     Ok(())
 // }
 
-fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &str, udid: &str) -> io::Result<bool> {
+fn is_device_provisioned(session: &mut Session, app_bundle_path: &str, device_id: &str, udid: &str) -> io::Result<bool> {
     println!("checking if target device is properly provisioned");
     //obtain the mobile provision file name
     let mobileprovision_file: String;
@@ -2432,7 +2419,7 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
                     let profile_name = xml[start..start + string_end].trim().to_string();
                     if !profile_name.is_empty() {
                         //list the installed provisions
-                        let output = Command::new(format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap()))
+                        let output = Command::new(format!("{}/ideviceprovision", session.get_path("homebrew_path")?))
                             .args(["list", "--udid", udid])
                             .output()?;
                         if !output.status.success() {
@@ -2506,7 +2493,7 @@ fn is_device_provisioned(session: &Session, app_bundle_path: &str, device_id: &s
                     let profile_name = xml[start..start + string_end].trim().to_string();
                     if !profile_name.is_empty() {
                         //list the installed provisions
-                        let output = Command::new(format!("{}/ideviceprovision", session.paths.homebrew_path.as_ref().unwrap()))
+                        let output = Command::new(format!("{}/ideviceprovision", session.get_path("homebrew_path")?))
                             .args(["list", "--udid", udid])
                             .output()?;
                         if !output.status.success() {
@@ -2566,7 +2553,7 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
     }else if target_os == "android"{
         //TODO android device tether deployment
         println!("TODO android tether deployment");
-        let adb_path = format!("{}/adb", session.paths.platform_tools_path.as_ref().unwrap());
+        let adb_path = format!("{}/adb", session.get_path("platform_tools_path")?);
         if !is_android_device_connected(session, &adb_path){
             return Err(io::Error::new(io::ErrorKind::Other, "no android device detected, or multiple devices connected"));
         }
@@ -2630,7 +2617,7 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
 //TODO "main activity not found", might remove this LLM code
 fn get_adb_launch_payload(session: &mut Session, apk_path: &Path) -> Result<String, io::Error> {
     // Run aapt to dump manifest as text tree
-    let aapt_path = format!("{}/aapt", session.paths.build_tools_path.as_ref().unwrap());
+    let aapt_path = format!("{}/aapt", session.get_path("build_tools_path")?);
     let output = Command::new(&aapt_path)
         .args(["dump", "xmltree", apk_path.to_str().unwrap(), "AndroidManifest.xml"])
         .output()?;
@@ -2905,7 +2892,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     // Execute cargo build
     let cargo_command = format!("{} {}", session.get_path("cargo_path")?, cargo_args);
     let current_path = env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}", session.paths.homebrew_path.as_ref().unwrap(), current_path);
+    let new_path = format!("{}:{}", session.get_path("homebrew_path")?, current_path);
     println!("building for {} on {}", &target_os, session.os);
     let output = if target_os.as_str() == "android" {
                     //building for android
