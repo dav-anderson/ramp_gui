@@ -1383,6 +1383,62 @@ fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
     Ok(())
 }
 
+fn generate_ruby_script(app_name: &str, deployment_target: &str, platform: &str, include_rust_build_phase: bool, absolute_path: &str) -> std::io::Result<()> {
+    let mut file = File::create("generate_xcode.rb")?;
+    let content = format!(r#"
+require 'xcodeproj'
+require 'fileutils'
+
+# Ensure the directory exists
+FileUtils.mkdir_p('{absolute_path}')
+
+# Create a new Xcode project at the absolute path
+project = Xcodeproj::Project.new(File.join('{absolute_path}', '{app_name}.xcodeproj'))
+
+# Add an iOS app target
+target = project.new_target(:application, '{app_name}', :{platform}, '{deployment_target}')
+
+# Add a group for the Rust sources (using absolute paths for files)
+group = project.main_group.new_group('RustSources')
+group.new_file(File.join('{absolute_path}', 'Cargo.toml'))
+group.new_file(File.join('{absolute_path}', 'src/main.rs'))  # Add more Rust files as needed
+
+# Add system frameworks (examples: UIKit and Foundation; add more as needed)
+uikit = project.frameworks_group.new_reference('System/Library/Frameworks/UIKit.framework')
+target.frameworks_build_phases.add_file_reference(uikit, true)
+
+foundation = project.frameworks_group.new_reference('System/Library/Frameworks/Foundation.framework')
+target.frameworks_build_phases.add_file_reference(foundation, true)
+
+{} # Optional Rust build phase
+
+# Save the project
+project.save
+
+puts "Xcode project created with frameworks added at {absolute_path}/{app_name}.xcodeproj. Open or build with xcodebuild."
+"#, 
+    if include_rust_build_phase {
+        format!(r#"
+# Add a shell script build phase to compile the Rust code with Cargo
+phase = target.new_shell_script_build_phase('Build Rust Lib')
+phase.shell_script = <<~SCRIPT
+  cd "{absolute_path}"
+  cargo build --release --target aarch64-apple-ios --lib
+SCRIPT
+"#)
+    } else {
+        "".to_string()
+    }, 
+    app_name = app_name, 
+    deployment_target = deployment_target, 
+    platform = platform,
+    absolute_path = absolute_path
+    );
+
+    file.write_all(content.as_bytes())?;
+    Ok(())
+}
+
 fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     //check network connectivity
     println!("Checking for network connectivity...");
@@ -1539,6 +1595,9 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
             }
 
             println!("Template cloned successfully to {}", &new_path);
+
+            session.update_current_project(name.to_string())?;
+
         }
         _ => {
             return Err(io::Error::new(
@@ -1594,7 +1653,7 @@ fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>)
     )?;
     //rename default strings in macos/Ramp.app/Contents/Info.plist
     replace_strings_in_file(
-        &format!("{}/macos/{}.app/Info.plist", new_path, capitalized_name),
+        &format!("{}/macos/{}.app/Contents/Info.plist", new_path, capitalized_name),
         &replacements,
     )?;
     //replace bundle id if applicable
@@ -2551,8 +2610,7 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
             return Err(io::Error::new(io::ErrorKind::Other, "could not launch app bundle to IOS device via USB tether"));
         }
     }else if target_os == "android"{
-        //TODO android device tether deployment
-        println!("TODO android tether deployment");
+        //android device tether deployment
         let adb_path = format!("{}/adb", session.get_path("platform_tools_path")?);
         if !is_android_device_connected(session, &adb_path){
             return Err(io::Error::new(io::ErrorKind::Other, "no android device detected, or multiple devices connected"));
@@ -2821,6 +2879,9 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "android" => format!(
                 "{}/target/debug/apk/{}.apk", &project_path, capitalize_first(session.current_project.as_ref().unwrap())
             ),
+            "android_run" => format!(
+                "{}/target/debug/apk/{}.apk", &project_path, capitalize_first(session.current_project.as_ref().unwrap())
+            ),
             "ios" => if session.os.as_str() == "macos" {format!(
                 "{}/target/aarch64-apple-ios/debug/{} ...if you are looking for the full app bundle check the ramp/{}/ios directory", &project_path, session.current_project.as_ref().unwrap(), session.current_project.as_ref().unwrap()
             )} else {
@@ -2871,8 +2932,12 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "apk build{}",
             if release { " --release " } else { " --lib " }
         ),
+        "android_run" => format!(
+            "apk run{}",
+            if release { " --release " } else { " --lib " }
+        ),
         "ios" => format!(
-            "build --target aarch64-apple-ios{}",
+            "build --target aarch64-apple-ios{} --verbose",
             if release { " --release " } else { "" }
         ),
         // "ios_sim" => "build --target aarch64-apple-ios-sim".to_string(),
@@ -2894,7 +2959,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     let current_path = env::var("PATH").unwrap_or_default();
     let new_path = format!("{}:{}", session.get_path("homebrew_path")?, current_path);
     println!("building for {} on {}", &target_os, session.os);
-    let output = if target_os.as_str() == "android" {
+    let output = if target_os.as_str() == "android" || target_os.as_str() == "android_run"{
                     //building for android
                     Command::new("bash")
                     .arg("-c")
@@ -2909,7 +2974,6 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
                     .output()?
                 //building for linux on macos
                 } else if session.os == "macos" && target_os.as_str() == "linux" {
-                    println!("FIRING");
                     Command::new("bash")
                     .arg("-c")
                     //insert path to zigbuild
@@ -2917,6 +2981,16 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
                     .current_dir(project_dir) // Set working directory
                     //provide the temp environment path for zig
                     .env("PATH", new_path)                
+                    .stdout(Stdio::inherit()) // Show build output
+                    .stderr(Stdio::inherit())
+                    .output()?
+                //ios build case
+                } else if target_os.as_str() == "ios" {
+                    Command::new("bash")
+                    .arg("-c")
+                    .arg(&cargo_command)
+                    .current_dir(project_dir) // Set working directory
+                    .env("SDKROOT", get_ios_sdk()?)
                     .stdout(Stdio::inherit()) // Show build output
                     .stderr(Stdio::inherit())
                     .output()?
@@ -3003,6 +3077,29 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
 
     //TODO compile windows app.rc for desktop icon, see ramp_template readme
     Ok(())
+}
+
+fn get_ios_sdk() -> io::Result<String> {
+    let output = Command::new("xcrun")
+    .args(["--sdk", "iphoneos", "--show-sdk-path"])
+    .output()
+    .map_err(|e| {
+        io::Error::new(
+            ErrorKind::Other,
+            format!("Failed to execute xcrun to obtain SDKROOT: {}", e),
+        )
+    })?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(
+            ErrorKind::Other,
+            format!("xcrun xctrace failed: {}", String::from_utf8_lossy(&output.stderr)),
+        ));
+    }
+
+    let sdk_path = String::from_utf8_lossy(&output.stdout);
+    println!("SDK PATH FOUND: {}", &sdk_path);
+    Ok(sdk_path.trim().to_string())
 }
 
 //initialization function upon starting the app
@@ -3110,10 +3207,13 @@ fn main() -> io::Result<()> {
         println!("current project: {:?}", session.current_project);
 
         // //format the icon.png in assets/resources/icons across all outputs
-        // update_icons(&session)?;
+        update_icons(&session)?;
 
         // //build the target output (session: &Session, target_os: String, release: bool)
-        build_output(&mut session, "linux".to_string(), false)?;
+        build_output(&mut session, "ios".to_string(), false)?;
+
+        //TODO can build_output(&mut session, "android_run".to_string(), false)?; replace the entire deploy_usb_tether flow for android? It seems that way.
+
 
         // // load_simulator(&mut session, "ios".to_string())?;
         // deploy_usb_tether(&mut session, "android".to_string())?;
