@@ -1639,7 +1639,7 @@ fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>)
         name
     );
     let capitalized_name = capitalize_first(name);
-    let replacements = vec![("Ramp", capitalized_name.as_str()), ("ramp", name)];
+    let replacements = vec![("Ramp", capitalized_name.as_str()), ("ramp", name), ("com.example.name", format!("com.ramp.{}", name))];
     //rename default strings in cargo.toml
     replace_strings_in_file(&format!("{}/Cargo.toml", new_path), &replacements)?;
     //rename dir ios/Ramp.app
@@ -1664,7 +1664,7 @@ fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>)
     )?;
     //replace bundle id if applicable
     if bundle_id.is_some() {
-        let existing_bundle = format!("com.ramp.{}", session.current_project.as_ref().unwrap());
+        let existing_bundle = format!("com.ramp.{}", name);
         let replacements = vec![(existing_bundle.as_str(), bundle_id.as_ref().unwrap().as_str())];
         replace_strings_in_file(
             &format!("{}/ios/{}.app/Info.plist", new_path, capitalized_name),
