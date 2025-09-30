@@ -1109,12 +1109,18 @@ fn sign_build(session: &mut Session, target_os: &str, release: bool) -> io::Resu
     if target_os == "ios" {
         //check if keychain is locked, if so, unlock
         loop{
+            println!("looping keychain check");
             let output = Command::new("security")
                 .args(["show-keychain-info", &format!("{}/login.keychain-db", session.get_path("keystore_path")?)])
                 .output()
                 .unwrap();
-            
-            if output.status.success() && !String::from_utf8_lossy(&output.stdout).contains("locked") {
+            if String::from_utf8_lossy(&output.stdout).contains("could not be found"){
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("could not find the requested keychain"),
+                ));
+            }
+            if !String::from_utf8_lossy(&output.stdout).contains("locked") {
                 break;
             }else{
                 // wait 3 seconds
@@ -2940,7 +2946,6 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             "build --target aarch64-apple-ios{} --verbose",
             if release { " --release " } else { "" }
         ),
-        // "ios_sim" => "build --target aarch64-apple-ios-sim".to_string(),
         //TODO need to support lipo outputs for combined chipset architecture
         "macos" => format!(
             "build{}",
@@ -2991,6 +2996,8 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
                     .arg(&cargo_command)
                     .current_dir(project_dir) // Set working directory
                     .env("SDKROOT", get_ios_sdk()?)
+                    .env("IPHONEOS_DEPLOYMENT_TARGET", "17.5")
+                    .env("RUSTFLAGS", format!("-L framework={}/System/Library/Frameworks", get_ios_sdk()?))
                     .stdout(Stdio::inherit()) // Show build output
                     .stderr(Stdio::inherit())
                     .output()?
@@ -3216,7 +3223,7 @@ fn main() -> io::Result<()> {
 
 
         // // load_simulator(&mut session, "ios".to_string())?;
-        // deploy_usb_tether(&mut session, "android".to_string())?;
+        deploy_usb_tether(&mut session, "ios".to_string())?;
     }
 
     //TODOS
