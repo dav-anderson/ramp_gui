@@ -1639,7 +1639,8 @@ fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>)
         name
     );
     let capitalized_name = capitalize_first(name);
-    let replacements = vec![("Ramp", capitalized_name.as_str()), ("ramp", name), ("com.example.name", format!("com.ramp.{}", name))];
+    let default_bundle = format!("com.ramp.{}", name);
+    let replacements = vec![("Ramp", capitalized_name.as_str()), ("ramp", name), ("com.example.name", default_bundle.as_str())];
     //rename default strings in cargo.toml
     replace_strings_in_file(&format!("{}/Cargo.toml", new_path), &replacements)?;
     //rename dir ios/Ramp.app
@@ -2943,7 +2944,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
             if release { " --release " } else { " --lib " }
         ),
         "ios" => format!(
-            "build --target aarch64-apple-ios{} --verbose",
+            "build --target aarch64-apple-ios{}",
             if release { " --release " } else { "" }
         ),
         //TODO need to support lipo outputs for combined chipset architecture
@@ -2986,18 +2987,6 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
                     .current_dir(project_dir) // Set working directory
                     //provide the temp environment path for zig
                     .env("PATH", new_path)                
-                    .stdout(Stdio::inherit()) // Show build output
-                    .stderr(Stdio::inherit())
-                    .output()?
-                //ios build case
-                } else if target_os.as_str() == "ios" {
-                    Command::new("bash")
-                    .arg("-c")
-                    .arg(&cargo_command)
-                    .current_dir(project_dir) // Set working directory
-                    .env("SDKROOT", get_ios_sdk()?)
-                    .env("IPHONEOS_DEPLOYMENT_TARGET", "17.5")
-                    .env("RUSTFLAGS", format!("-L framework={}/System/Library/Frameworks", get_ios_sdk()?))
                     .stdout(Stdio::inherit()) // Show build output
                     .stderr(Stdio::inherit())
                     .output()?
