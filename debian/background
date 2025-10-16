@@ -1,0 +1,8 @@
+[Unit]
+Description=Start Orange Background
+
+[Service]
+ExecStart=orange background
+
+[Install]
+WantedBy=multi-user.target
