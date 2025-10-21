@@ -1,7 +1,6 @@
 pub mod ramp;
 use crate::ramp::install::install;
 
-
 use std::io;
 use std::env;
 
