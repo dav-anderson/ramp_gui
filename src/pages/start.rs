@@ -4,12 +4,13 @@ use pelican_ui::layout::{Layout, SizeRequest, Area};
 use pelican_ui::events::{OnEvent};
 use std::collections::BTreeMap;
 use pelican_ui_std::AppPage;
-use pelican_ui_std::components::interface::general::{Interface, Page, Content, Header};
+use pelican_ui_std::components::interface::general::{Bumper, Interface, Page, Content, Header};
 use pelican_ui_std::layout::{Stack, Offset};
 use pelican_ui_std::components::{Text, TextStyle, Icon, ExpandableText,};
 use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize};
 use pelican_ui_std::events::NavigateEvent;
 use crate::pages::new::NewProjectScreen;
+use crate::pages::load::LoadProjectScreen;
 
 // Define the main application struct. This is our entry point type.
 pub struct MyApp;
@@ -60,6 +61,7 @@ impl AppPage for StartScreen {
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
         match index {
             0 => Ok(Box::new(NewProjectScreen::new(ctx))),
+            1 => Ok(Box::new(LoadProjectScreen::new(ctx))),
             _ => Err(self),
         }
         
@@ -106,25 +108,35 @@ impl StartScreen {
             Align::Center
         );
 
-        // Create subtext.
-        let new_project = Button::primary(
-            ctx,
-            "New",
-            |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0))
-            //on_click
-        );
-
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
             ctx,
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(icon), Box::new(text), Box::new(new_project)]
+            vec![Box::new(icon), Box::new(text)]
         );
+
+        // Create a new project.
+        let new_project = Button::primary(
+            ctx,
+            "New",
+            //on_click
+            |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0))
+        );
+        
+        // Create a new project.
+        let load_project = Button::primary(
+            ctx,
+            "Load",
+            //on_click
+            |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1))
+        );
+
+        let bumper = Bumper::double_button(ctx, new_project, load_project);
 
         // Return the StartScreen with a default Stack and a 
         // new Page containinhg our header, content, and no bumper.
-        StartScreen(Stack::default(), Page::new(Some(header), content, None))
+        StartScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
     }
 }
