@@ -36,7 +36,7 @@ impl DashboardScreen {
         let header = Header::stack(
             ctx,
             Some(back),
-            "Load Existing Project", 
+            "<ProjectName> dashboard", 
             None
         );
 
@@ -45,7 +45,7 @@ impl DashboardScreen {
         // Create the main heading text
         let text = Text::new(
             ctx,
-            "selectable list goes here",
+            "app dashboard goes here",
             TextStyle::Heading,
             font_size.h2,
             Align::Center
