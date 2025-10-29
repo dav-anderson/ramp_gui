@@ -11,6 +11,8 @@ use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, Butto
 use pelican_ui_std::events::NavigateEvent;
 use crate::pages::new::NewProjectScreen;
 use crate::pages::load::LoadProjectScreen;
+use crate::pages::error::{ ErrorComponent, ErrorScreen };
+use crate::ramp::session::{Session};
 
 // Define the main application struct. This is our entry point type.
 pub struct MyApp;
@@ -37,6 +39,23 @@ impl Application for MyApp {
         let home = StartScreen::new(ctx);
         // Create the main interface with the first screen as the starting page
         let interface = Interface::new(ctx, Box::new(home), None, None);
+        //create the session state if it doesn't exist
+        let mut session = match Session::new() {
+            Ok(s) => s,
+            Err(e) => {
+                ctx.state().set_named("error".to_string(), e);
+                ctx.trigger_event(NavigateEvent(0));
+                Session::default()
+            }
+        };
+        match session.get_all_paths() { //update the session state from config file
+            Ok(())=> {},
+            Err(e) => {
+                ctx.state().set_named("error".to_string(), e);
+                ctx.trigger_event(NavigateEvent(0));
+            }
+        };
+        ctx.state().set_named("session".to_string(), session);
         // Return the interface wrapped in a Box
         Box::new(interface)
     }
@@ -60,8 +79,9 @@ impl AppPage for StartScreen {
     // Handle page navigation. Always returns Err(self) because this page cannot navigate.
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
         match index {
-            0 => Ok(Box::new(NewProjectScreen::new(ctx))),
+            0 => Ok(Box::new(ErrorScreen::new(ctx))),
             1 => Ok(Box::new(LoadProjectScreen::new(ctx))),
+            2 => Ok(Box::new(NewProjectScreen::new(ctx))),
             _ => Err(self),
         }
         
@@ -122,7 +142,7 @@ impl StartScreen {
             ctx,
             "New",
             //on_click
-            |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0))
+            |ctx: &mut Context| ctx.trigger_event(NavigateEvent(2))
         );
         
         // Create a new project.

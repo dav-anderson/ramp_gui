@@ -11,6 +11,9 @@ use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, Butto
 use pelican_ui_std::events::NavigateEvent;
 use crate::pages::start::StartScreen;
 use crate::pages::dashboard::DashboardScreen;
+use crate::pages::error::ErrorScreen;
+use crate::ramp::session::{Session};
+use crate::ramp::core::{new_project};
 
 #[derive(Debug, Component)]
 pub struct NewProjectScreen(Stack, Page);
@@ -24,8 +27,9 @@ impl AppPage for NewProjectScreen {
 
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
         match index {
-            0 => Ok(Box::new(StartScreen::new(ctx))),
+            0 => Ok(Box::new(ErrorScreen::new(ctx))),
             1 => Ok(Box::new(DashboardScreen::new(ctx))),
+            2 => Ok(Box::new(StartScreen::new(ctx))),
             _ => Err(self),
         }
     }
@@ -33,7 +37,9 @@ impl AppPage for NewProjectScreen {
 
 impl NewProjectScreen {
     pub fn new(ctx: &mut Context) -> Self {
-        let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0)));
+        let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(2)));
+        // let mut session:&mut Session = ctx.state().get_named_mut::<Session>("session").unwrap();
+
         // Create a header for the page
         let header = Header::stack(
             ctx,
@@ -59,16 +65,26 @@ impl NewProjectScreen {
             None,
             Some("Give Your Project a Name"),
             "Project name...",
-            Some("This name will be applied across the app"),
+            Some("This name will be applied across the app template"),
             TextInput::NO_ICON,
             false
         );
 
+        //TODO trim th name, make sure it doesn't contain any invalid characters and make sure its not blank
         let create_button = Button::primary(
             ctx,
             "Create",
             //on_click
-            |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1))
+            |ctx: &mut Context| {
+                // match new_project(&mut session, name_input.value()){
+                //     Ok(())=> {},
+                //     Err(e) => {
+                //         ctx.state().set_named("error".to_string(), e);
+                //         ctx.trigger_event(NavigateEvent(0));
+                //     }
+                // }
+                ctx.trigger_event(NavigateEvent(1))
+            }
         );
 
         let bumper = Bumper::single_button(ctx, create_button);

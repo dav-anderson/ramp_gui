@@ -11,39 +11,35 @@ use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, Butto
 use pelican_ui_std::events::NavigateEvent;
 use crate::pages::start::StartScreen;
 use crate::pages::error::ErrorScreen;
-use crate::pages::ios::IOSScreen;
-use crate::pages::macos::MacOSScreen;
 
 
 #[derive(Debug, Component)]
-pub struct DashboardScreen(Stack, Page);
+pub struct MacOSScreen(Stack, Page);
 
-// Implement event handling for DashboardScreen
-impl OnEvent for DashboardScreen {}
+// Implement event handling for MacOSScreen
+impl OnEvent for MacOSScreen {}
 
 // Implement the AppPage trait for navigation and UI behavior   
-impl AppPage for DashboardScreen {
+impl AppPage for MacOSScreen {
     fn has_nav(&self) -> bool { true }
 
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
         match index {
             0 => Ok(Box::new(ErrorScreen::new(ctx))),
             1 => Ok(Box::new(StartScreen::new(ctx))),
-            2 => Ok(Box::new(IOSScreen::new(ctx))),
-            3 => Ok(Box::new(MacOSScreen::new(ctx))),
             _ => Err(self),
         }
     }
 }
 
-impl DashboardScreen {
+impl MacOSScreen {
     pub fn new(ctx: &mut Context) -> Self {
         let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
         // Create a header for the page
         let header = Header::stack(
             ctx,
             Some(back),
-            "<ProjectName> dashboard", 
+            "<ProjectName> MacOS", 
             None
         );
 
@@ -52,7 +48,7 @@ impl DashboardScreen {
         // Create the main heading text
         let text = Text::new(
             ctx,
-            "app dashboard goes here",
+            "build MacOS tools go here",
             TextStyle::Heading,
             font_size.h2,
             Align::Center
@@ -75,6 +71,6 @@ impl DashboardScreen {
             vec![Box::new(text)]
         );
 
-        DashboardScreen(Stack::default(), Page::new(Some(header), content, None))
+        MacOSScreen(Stack::default(), Page::new(Some(header), content, None))
     }
 }

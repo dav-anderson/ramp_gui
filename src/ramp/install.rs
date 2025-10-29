@@ -1,5 +1,5 @@
 use super::helper::{is_command_available, is_xcode_tools_installed, get_user_home};
-use super::{Session};
+use super::session::{Session};
 use std::env;
 use std::fs;
 use std::fs::File;

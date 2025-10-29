@@ -1,5 +1,5 @@
 use super::helper::{is_command_available, capitalize_first};
-use super::{Session};
+use super::session::{Session};
 use image::{self, imageops, DynamicImage, ImageEncoder};
 use std::env;
 use std::fs;
@@ -12,7 +12,7 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 //sign an app build
-fn sign_build(session: &mut Session, target_os: &str, release: bool) -> io::Result<()> {
+pub fn sign_build(session: &mut Session, target_os: &str, release: bool) -> io::Result<()> {
     println!("signing app bundle for {}", target_os);
     if target_os == "ios" {
         //check if keychain is locked, if so, unlock
@@ -62,7 +62,7 @@ fn sign_build(session: &mut Session, target_os: &str, release: bool) -> io::Resu
     Ok(())
 }
 
-fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
+pub fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     //check network connectivity
     println!("Checking for network connectivity...");
     //ping linux servers once to check for connectivity
@@ -242,14 +242,14 @@ fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
+pub fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
     println!("loading project...");
     session.update_current_project(name.to_string())?;
     Ok(())
 }
 
 //renames all of the paths and file contents of the template to match the user provided name when creating a new ramp project
-fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>) -> io::Result<()> {
+pub fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>) -> io::Result<()> {
     let new_path = format!(
         "{}/{}",
         session.projects_path.as_ref().unwrap_or(&String::new()),
@@ -300,7 +300,7 @@ fn template_naming(session: &mut Session, name: &str, bundle_id: Option<String>)
 }
 
 //renames a target directory to a given new String
-fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
+pub fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
     // Get the parent directory of the current path
     let current_dir = Path::new(current_path);
     let parent_dir = current_dir.parent().ok_or_else(|| {
@@ -335,7 +335,7 @@ fn rename_directory(current_path: &str, target_name: &str) -> io::Result<()> {
 }
 
 //find and replace target strings in a target file
-fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) -> io::Result<()> {
+pub fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) -> io::Result<()> {
     // Read the file content into a string
     let content = fs::read_to_string(file_path).map_err(|e| {
         io::Error::new(
@@ -362,7 +362,7 @@ fn replace_strings_in_file(file_path: &str, replacements: &Vec<(&str, &str)>) ->
     Ok(())
 }
 
-fn get_bundle_id(session: &mut Session, target_os: &str) -> io::Result<String> {
+pub fn get_bundle_id(session: &mut Session, target_os: &str) -> io::Result<String> {
     let plist_path = format!("{}/{}/{}/{}.app/Info.plist", session.projects_path.as_ref().unwrap(), session.current_project.as_ref().unwrap(), &target_os, capitalize_first(session.current_project.as_ref().unwrap()));
     let plist_content = fs::read_to_string(&plist_path)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to read Info.plist in get_bundle_id: {}", e)))?;
@@ -379,7 +379,7 @@ fn get_bundle_id(session: &mut Session, target_os: &str) -> io::Result<String> {
     Ok(bundle_id)
 }
 
-fn resize_png(input_name: &str, target_name: &str, width: u32, height: u32) -> io::Result<()> {
+pub fn resize_png(input_name: &str, target_name: &str, width: u32, height: u32) -> io::Result<()> {
     // Open the input PNG file
     let img = image::open(input_name).map_err(|e| {
         io::Error::new(
@@ -420,7 +420,7 @@ fn resize_png(input_name: &str, target_name: &str, width: u32, height: u32) -> i
     Ok(())
 }
 
-fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
+pub fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
     let windows = "windows_icon.ico";
     let favicon = "favicon.ico";
     let win_output_path = format!(
@@ -591,7 +591,7 @@ fn convert_png_to_ico(session: &Session, input_path: &str) -> io::Result<()> {
 
 //update all of the icons in the project from a single image provided in <projects_path>/<project_name>/assets/resources/icons
 //reccomended input is a 1024X1024 .png
-fn update_icons(session: &Session) -> io::Result<()> {
+pub fn update_icons(session: &Session) -> io::Result<()> {
     let originating_icon = format!(
         "{}/{}/assets/resources/icons/icon.png",
         session.projects_path.as_ref().unwrap(),
@@ -683,7 +683,7 @@ fn update_icons(session: &Session) -> io::Result<()> {
     Ok(())
 }
 
-fn provision_device(session: &mut Session, udid: String, target_os: &String, release: bool) -> io::Result<()> {
+pub fn provision_device(session: &mut Session, udid: String, target_os: &String, release: bool) -> io::Result<()> {
     println!("Provisioning a new device with unique device id: {}", &udid);
     //open apple developer portal
     let output = Command::new("open")
@@ -861,7 +861,7 @@ fn provision_device(session: &mut Session, udid: String, target_os: &String, rel
     Ok(())
 }
 
-fn get_udid_by_target(device_target: &str) -> io::Result<String> {
+pub fn get_udid_by_target(device_target: &str) -> io::Result<String> {
     // Run xcrun xctrace list devices
     let output = Command::new("xcrun")
         .args(["xctrace", "list", "devices"])
@@ -936,7 +936,7 @@ fn get_udid_by_target(device_target: &str) -> io::Result<String> {
     }
 }
 
-fn get_device_identifier() -> io::Result<String> {
+pub fn get_device_identifier() -> io::Result<String> {
     // Run xcrun devicectl list devices
     let output = Command::new("xcrun")
         .args(["devicectl", "list", "devices"])
@@ -1010,7 +1010,7 @@ fn get_device_identifier() -> io::Result<String> {
 //     Ok(())
 // }
 
-fn is_device_provisioned(session: &mut Session, app_bundle_path: &str, device_id: &str, udid: &str) -> io::Result<bool> {
+pub fn is_device_provisioned(session: &mut Session, app_bundle_path: &str, device_id: &str, udid: &str) -> io::Result<bool> {
     println!("checking if target device is properly provisioned");
     //obtain the mobile provision file name
     let mobileprovision_file: String;
@@ -1193,7 +1193,7 @@ fn is_device_provisioned(session: &mut Session, app_bundle_path: &str, device_id
     }
 }
 
-fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
+pub fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()> {
     //deploy to target device
     if target_os == "ios"{
         //obtain device uuid
@@ -1289,7 +1289,7 @@ fn deploy_usb_tether(session: &mut Session, target_os: String) -> io::Result<()>
 }
 
 //TODO "main activity not found", might remove this LLM code
-fn get_adb_launch_payload(session: &mut Session, apk_path: &Path) -> Result<String, io::Error> {
+pub fn get_adb_launch_payload(session: &mut Session, apk_path: &Path) -> Result<String, io::Error> {
     // Run aapt to dump manifest as text tree
     let aapt_path = format!("{}/aapt", session.get_path("build_tools_path")?);
     let output = Command::new(&aapt_path)
@@ -1378,7 +1378,7 @@ fn get_adb_launch_payload(session: &mut Session, apk_path: &Path) -> Result<Stri
     Ok(format!("-n \"{}/{}\"", pkg, act))
 }
 
-fn is_android_device_connected(adb_path: &str) -> bool {
+pub fn is_android_device_connected(adb_path: &str) -> bool {
     println!("adb path: {}", adb_path);
     let output = match Command::new(adb_path)
         .arg("devices")
@@ -1405,7 +1405,7 @@ fn is_android_device_connected(adb_path: &str) -> bool {
 }
 
 //this needs to get called when creating a new project on macos/ios
-fn create_app_bundle_id(session: &mut Session) -> io::Result<Option<String>> {
+pub fn create_app_bundle_id(session: &mut Session) -> io::Result<Option<String>> {
         if session.os.as_str() != "macos"{
             return Ok(None)
         }
@@ -1454,7 +1454,7 @@ fn create_app_bundle_id(session: &mut Session) -> io::Result<Option<String>> {
         }
 }
 
-fn build_output(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
+pub fn build_output(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
     // Validate project path
     let project_path = format!(
         "{}/{}",
@@ -1685,7 +1685,7 @@ fn build_output(session: &mut Session, target_os: String, release: bool) -> io::
     Ok(())
 }
 
-fn get_ios_sdk() -> io::Result<String> {
+pub fn get_ios_sdk() -> io::Result<String> {
     let output = Command::new("xcrun")
     .args(["--sdk", "iphoneos", "--show-sdk-path"])
     .output()
@@ -1709,25 +1709,10 @@ fn get_ios_sdk() -> io::Result<String> {
 }
 
 //old main()
- // let mut session = Session::new()?;
+    // let mut session = Session::new()?;
     // println!("Starting a new session on OS: {}", session.os);
     // session.get_all_paths()?;
 
-    // // Collect all command-line arguments into a Vec<String>
-    // let args: Vec<String> = env::args().collect();
-
-    // // Print arguments for debugging
-    // println!("Arguments: {:?}", args);
-    
-    // // Check for the -install argument, this flow requires sudo priveleges
-    // if args.contains(&"-install".to_string()) {
-    //     println!("Running install with elevated privileges...");
-    //     //initial install
-    //     install(&mut session)?;
-    //     //TODO move the binary from the .dmg or the .deb after install is finished
-    //     //TODO terminate the session
-    //     //TODO can we start an external script with a timer here to relaunch ramp gui after closing initial install client?
-    // }else{
     //     //create new proj
     //     let name: &str = "testproj";
     //     // new_project(&mut session, &name)?;
@@ -1748,11 +1733,13 @@ fn get_ios_sdk() -> io::Result<String> {
 
     //     // // load_simulator(&mut session, "ios".to_string())?;
     //     // deploy_usb_tether(&mut session, "ios".to_string())?;
-    // }
+
 
 
 
      //TODOS
+
+    //prevent the user from being able to create stupid project names that break file paths
 
     //update the ramp_template with missing file architecture
     //programmatically introduce xcode frameworks as required by pelican ui on new template instances

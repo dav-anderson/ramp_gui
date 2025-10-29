@@ -1,4 +1,5 @@
 pub mod pages;
+pub mod ramp;
 
 use crate::pages::start::StartScreen;
 
