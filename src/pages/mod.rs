@@ -5,3 +5,7 @@ pub mod dashboard;
 pub mod error;
 pub mod ios;
 pub mod macos;
+pub mod android;
+pub mod windows;
+pub mod linux;
+pub mod wasm;

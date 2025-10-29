@@ -4,7 +4,7 @@ use pelican_ui::layout::{Layout, SizeRequest, Area};
 use pelican_ui::events::OnEvent;
 use std::collections::BTreeMap;
 use pelican_ui_std::AppPage;
-use pelican_ui_std::components::interface::general::{Interface, Page, Content, Header};
+use pelican_ui_std::components::interface::general::{Bumper, Interface, Page, Content, Header};
 use pelican_ui_std::layout::{Stack, Offset};
 use pelican_ui_std::components::{Text, TextStyle, Icon, ExpandableText,};
 use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize, IconButton};
@@ -48,7 +48,7 @@ impl MacOSScreen {
         // Create the main heading text
         let text = Text::new(
             ctx,
-            "build MacOS tools go here",
+            "WIP build MacOS tools go here",
             TextStyle::Heading,
             font_size.h2,
             Align::Center
@@ -71,6 +71,24 @@ impl MacOSScreen {
             vec![Box::new(text)]
         );
 
-        MacOSScreen(Stack::default(), Page::new(Some(header), content, None))
+        // Create a new project.
+        let debug_btn = Button::primary(
+            ctx,
+            "Build Debug",
+            //on_click
+            |ctx: &mut Context| println!("Debug button")
+        );
+        
+        // Create a new project.
+        let release_btn = Button::primary(
+            ctx,
+            "Build Release",
+            //on_click
+            |ctx: &mut Context| println!("Release button")
+        );
+
+        let bumper = Bumper::double_button(ctx, debug_btn, release_btn);
+
+        MacOSScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
     }
 }

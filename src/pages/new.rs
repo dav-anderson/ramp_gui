@@ -28,8 +28,9 @@ impl AppPage for NewProjectScreen {
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
         match index {
             0 => Ok(Box::new(ErrorScreen::new(ctx))),
-            1 => Ok(Box::new(DashboardScreen::new(ctx))),
-            2 => Ok(Box::new(StartScreen::new(ctx))),
+            1 => Ok(Box::new(StartScreen::new(ctx))),
+            2 => Ok(Box::new(DashboardScreen::new(ctx))),
+            
             _ => Err(self),
         }
     }
@@ -37,7 +38,7 @@ impl AppPage for NewProjectScreen {
 
 impl NewProjectScreen {
     pub fn new(ctx: &mut Context) -> Self {
-        let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(2)));
+        let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
         // let mut session:&mut Session = ctx.state().get_named_mut::<Session>("session").unwrap();
 
         // Create a header for the page
@@ -83,7 +84,7 @@ impl NewProjectScreen {
                 //         ctx.trigger_event(NavigateEvent(0));
                 //     }
                 // }
-                ctx.trigger_event(NavigateEvent(1))
+                ctx.trigger_event(NavigateEvent(2))
             }
         );
 

@@ -13,6 +13,10 @@ use crate::pages::start::StartScreen;
 use crate::pages::error::ErrorScreen;
 use crate::pages::ios::IOSScreen;
 use crate::pages::macos::MacOSScreen;
+use crate::pages::android::AndroidScreen;
+use crate::pages::windows::WindowsScreen;
+use crate::pages::linux::LinuxScreen;
+use crate::pages::wasm::WASMScreen;
 
 
 #[derive(Debug, Component)]
@@ -31,6 +35,10 @@ impl AppPage for DashboardScreen {
             1 => Ok(Box::new(StartScreen::new(ctx))),
             2 => Ok(Box::new(IOSScreen::new(ctx))),
             3 => Ok(Box::new(MacOSScreen::new(ctx))),
+            4 => Ok(Box::new(AndroidScreen::new(ctx))),
+            5 => Ok(Box::new(WindowsScreen::new(ctx))),
+            6 => Ok(Box::new(LinuxScreen::new(ctx))),
+            7 => Ok(Box::new(WASMScreen::new(ctx))),
             _ => Err(self),
         }
     }
@@ -52,7 +60,7 @@ impl DashboardScreen {
         // Create the main heading text
         let text = Text::new(
             ctx,
-            "app dashboard goes here",
+            "WIP app dashboard goes here",
             TextStyle::Heading,
             font_size.h2,
             Align::Center

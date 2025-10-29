@@ -4,13 +4,14 @@ use pelican_ui::layout::{Layout, SizeRequest, Area};
 use pelican_ui::events::OnEvent;
 use std::collections::BTreeMap;
 use pelican_ui_std::AppPage;
-use pelican_ui_std::components::interface::general::{Interface, Page, Content, Header};
+use pelican_ui_std::components::interface::general::{Bumper, Interface, Page, Content, Header};
 use pelican_ui_std::layout::{Stack, Offset};
 use pelican_ui_std::components::{Text, TextStyle, Icon, ExpandableText,};
 use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize, IconButton};
 use pelican_ui_std::events::NavigateEvent;
 use crate::pages::start::StartScreen;
 use crate::pages::error::ErrorScreen;
+use crate::pages::dashboard::DashboardScreen;
 
 #[derive(Debug, Component)]
 pub struct LoadProjectScreen(Stack, Page);
@@ -26,6 +27,8 @@ impl AppPage for LoadProjectScreen {
         match index {
             0 => Ok(Box::new(ErrorScreen::new(ctx))),
             1 => Ok(Box::new(StartScreen::new(ctx))),
+            2 => Ok(Box::new(DashboardScreen::new(ctx))),
+            
             _ => Err(self),
         }
     }
@@ -70,6 +73,24 @@ impl LoadProjectScreen {
             vec![Box::new(text)]
         );
 
-        LoadProjectScreen(Stack::default(), Page::new(Some(header), content, None))
+        // Create a new project.
+        let load_btn = Button::primary(
+            ctx,
+            "Load",
+            //on_click
+            |ctx: &mut Context| ctx.trigger_event(NavigateEvent(2))
+        );
+        
+        // Create a new project.
+        let delete_btn = Button::primary(
+            ctx,
+            "Delete",
+            //on_click
+            |ctx: &mut Context| println!("Delete button")
+        );
+
+        let bumper = Bumper::double_button(ctx, load_btn, delete_btn);
+
+        LoadProjectScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
     }
 }

@@ -14,13 +14,13 @@ use crate::pages::error::ErrorScreen;
 
 
 #[derive(Debug, Component)]
-pub struct IOSScreen(Stack, Page);
+pub struct WASMScreen(Stack, Page);
 
-// Implement event handling for IOSScreen
-impl OnEvent for IOSScreen {}
+// Implement event handling for WASMScreen
+impl OnEvent for WASMScreen {}
 
 // Implement the AppPage trait for navigation and UI behavior   
-impl AppPage for IOSScreen {
+impl AppPage for WASMScreen {
     fn has_nav(&self) -> bool { true }
 
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
@@ -32,14 +32,14 @@ impl AppPage for IOSScreen {
     }
 }
 
-impl IOSScreen {
+impl WASMScreen {
     pub fn new(ctx: &mut Context) -> Self {
         let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
         // Create a header for the page
         let header = Header::stack(
             ctx,
             Some(back),
-            "<ProjectName> IOS", 
+            "<ProjectName> WASM", 
             None
         );
 
@@ -48,7 +48,7 @@ impl IOSScreen {
         // Create the main heading text
         let text = Text::new(
             ctx,
-            "WIP build ios tools go here",
+            "WIP build WASM tools go here",
             TextStyle::Heading,
             font_size.h2,
             Align::Center
@@ -81,6 +81,6 @@ impl IOSScreen {
 
         let bumper = Bumper::double_button(ctx, debug_btn, release_btn);
 
-        IOSScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
+        WASMScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
     }
 }
