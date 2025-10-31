@@ -38,6 +38,8 @@ impl AppPage for NewProjectScreen {
 
 impl NewProjectScreen {
     pub fn new(ctx: &mut Context) -> Self {
+        let session = ctx.state().get_named_mut::<Session>("session");
+        println!("Session token: {:?}", session);
         let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
         // let mut session:&mut Session = ctx.state().get_named_mut::<Session>("session").unwrap();
 

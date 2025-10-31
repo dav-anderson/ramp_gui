@@ -4,13 +4,15 @@ use pelican_ui::layout::{Layout, SizeRequest, Area};
 use pelican_ui::events::{OnEvent};
 use std::collections::BTreeMap;
 use pelican_ui_std::AppPage;
-use pelican_ui_std::components::interface::general::{Bumper, Interface, Page, Content, Header};
+use pelican_ui_std::components::interface::general::{Bumper, Interface, Page, Content, Header, NavigateInfo};
 use pelican_ui_std::layout::{Stack, Offset};
 use pelican_ui_std::components::{Text, TextStyle, Icon, ExpandableText,};
 use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize};
 use pelican_ui_std::events::NavigateEvent;
 use crate::pages::new::NewProjectScreen;
 use crate::pages::load::LoadProjectScreen;
+use crate::pages::ios::IOSScreen;
+use crate::pages::android::AndroidScreen;
 use crate::pages::error::{ ErrorComponent, ErrorScreen };
 use crate::ramp::session::{Session};
 
@@ -37,25 +39,14 @@ impl Application for MyApp {
     async fn new(ctx: &mut Context) -> Box<dyn Drawable> {
         // Create the first screen
         let home = StartScreen::new(ctx);
+        let ios_nav = ("boot", "IOS".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(IOSScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
+        let android_nav = ("cancel", "Android".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(AndroidScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
+        let navigation = (0usize, vec![android_nav], vec![ios_nav
+        ]);
+        
         // Create the main interface with the first screen as the starting page
-        let interface = Interface::new(ctx, Box::new(home), None, None);
-        //create the session state if it doesn't exist
-        let mut session = match Session::new() {
-            Ok(s) => s,
-            Err(e) => {
-                ctx.state().set_named("error".to_string(), e);
-                ctx.trigger_event(NavigateEvent(0));
-                Session::default()
-            }
-        };
-        match session.get_all_paths() { //update the session state from config file
-            Ok(())=> {},
-            Err(e) => {
-                ctx.state().set_named("error".to_string(), e);
-                ctx.trigger_event(NavigateEvent(0));
-            }
-        };
-        ctx.state().set_named("session".to_string(), session);
+        let interface = Interface::new(ctx, Box::new(home), Some(navigation), None);
+
         // Return the interface wrapped in a Box
         Box::new(interface)
     }
@@ -90,6 +81,30 @@ impl AppPage for StartScreen {
 
 impl StartScreen {
     pub fn new(ctx: &mut Context) -> Self {
+        if ctx.state().get_named_mut::<Session>("session").is_none(){
+            //create the session state if it doesn't exist
+            println!("creating session token");
+            let mut session = match Session::new() {
+                Ok(s) => s,
+                Err(e) => {
+                    ctx.state().set_named("error".to_string(), e);
+                    ctx.trigger_event(NavigateEvent(0));
+                    Session::default()
+                }
+            };
+            println!("blank session token: {:?}", session);
+            println!("populating session token");
+            match session.get_all_paths() { //update the session state from config file
+                Ok(())=> {},
+                Err(e) => {
+                    ctx.state().set_named("error".to_string(), e);
+                    ctx.trigger_event(NavigateEvent(0));
+                }
+            };
+            println!("populated session token: {:?}", session);
+            println!("saving session token");
+            ctx.state().set_named("session".to_string(), session);
+        }
         // Create a header for the page
         let header = Header::home(
             // The majority of UI components will require the app context.
