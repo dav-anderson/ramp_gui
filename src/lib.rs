@@ -3,18 +3,20 @@ pub mod ramp;
 
 use crate::pages::start::StartScreen;
 
-use pelican_ui::{Component, Context, Plugins, Plugin, start, Application};
-use pelican_ui::drawable::{Drawable, Component, Align};
-use pelican_ui::layout::{Layout, SizeRequest, Area};
-use pelican_ui::events::{OnEvent};
-use std::collections::BTreeMap;
-use pelican_ui_std::AppPage;
-use pelican_ui_std::components::interface::general::{Interface, Page, Content, Header};
-use pelican_ui_std::layout::{Stack, Offset};
-use pelican_ui_std::components::{Text, TextStyle, Icon, ExpandableText,};
-use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize};
-use pelican_ui_std::events::NavigateEvent;
-use crate::pages::new::NewProjectScreen;
+use pelican_ui::start;
+use pelican_ui::drawable;
+use pelican_ui::layout;
+use pelican_ui::drawable::{Drawable, Color, Align};
+use pelican_ui::{include_dir, drawables, Component, Context, Application, Plugin};
+use pelican_ui::events::{OnEvent, Event, TickEvent};
+use pelican_ui::layouts::{Offset, Stack};
+use pelican_ui::components::interface::navigation::PelicanError;
+use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
+use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
+use pelican_ui::plugin::PelicanUI;
+use pelican_ui::theme::Theme;
+use pelican_ui::components::interface::navigation::{AppPage, RootInfo};
+use pelican_ui::page;
 
 #[cfg(target_os = "macos")]
 #[link(name = "PhotosUI", kind = "framework")]
@@ -81,269 +83,32 @@ extern "C" {}
 #[link(name = "Foundation", kind = "framework")]
 extern "C" {}
 
-// Define the main application struct. This is our entry point type.
-pub struct MyApp;
+// Define the main application struct entry point.
+pub struct RampGUI;
 
-// Implement the Services trait for MyApp
-impl Services for MyApp {
-    // Provide a list of services used by the app. Here, it's empty.
-    fn services() -> ServiceList {
-        ServiceList(BTreeMap::new())
-    }
-}
-
-// Implement the Plugins trait for MyApp
-impl Plugins for MyApp {
-    // Provide a list of plugins used by the app. Currently, there are none.
-    fn plugins(_ctx: &mut Context) -> Vec<Box<dyn Plugin>> { vec![] }
-}
-
-// Implement the Application trait for MyApp
-impl Application for MyApp {
+// Implement the Application trait for RampGUI
+impl Application for RampGUI {
     // Asynchronously create the main drawable UI component
-    async fn new(ctx: &mut Context) -> Box<dyn Drawable> {
+    async fn new(ctx: &mut Context) -> impl Drawable {
         // Create the first screen
-        let home = StartScreen::new(ctx);
+        // let home = StartScreen::new(ctx);
+        let home = RootInfo::icon("home", "Placeholder", |ctx: &mut Context | Box::new(StartScreen::new(ctx).ok().unwrap()) as Box<dyn AppPage>);
+        // let ios_nav = ("boot", "IOS".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(IOSScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
+        // let android_nav = ("cancel", "Android".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(AndroidScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
+        // let navigation = (0usize, vec![android_nav], vec![ios_nav
+        // ]);
+        
         // Create the main interface with the first screen as the starting page
-        let interface = Interface::new(ctx, Box::new(home), None, None);
-        // Return the interface wrapped in a Box
-        Box::new(interface)
+        Interface::new(ctx, (vec![home], None))
+    }
+
+    //provide a list of plugins used by the app
+    fn plugins(ctx: &mut Context) -> Vec<Box<dyn Plugin>> {
+        ctx.assets.include_assets(include_dir!("./assets/resources"));
+        let theme = Theme::dark(&mut ctx.assets, Color::from_hex("#ff1f23", 255));
+        vec![Box::new(PelicanUI::new(ctx, theme))]
     }
 }
 
 // Macro to start the application
-start!(MyApp);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// use pelican_ui::{Component, Context, Plugins, Plugin, start, Application};
-// use pelican_ui::drawable::{Drawable, Component, Align};
-// use pelican_ui::layout::{Layout, SizeRequest, Area};
-// use pelican_ui::events::OnEvent;
-// use std::collections::BTreeMap;
-// use pelican_ui_std::AppPage;
-// use pelican_ui_std::components::interface::general::{Interface, Page, Content, Header};
-// use pelican_ui_std::layout::{Stack, Offset};
-// use pelican_ui_std::components::{Text, TextStyle, Icon, ExpandableText,};
-// use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize};
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "PhotosUI", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "Cocoa", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "ApplicationServices", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "AppKit", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "Carbon", kind = "framework")]
-// extern "C" {}
-
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "CoreGraphics", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "Metal", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "CoreVideo", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "CoreMedia", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "AVKit", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "AVFoundation", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "Security", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "QuartzCore", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "c++")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "AudioToolbox", kind = "framework")]
-// extern "C" {}
-
-// #[cfg(target_os = "macos")]
-// #[link(name = "Foundation", kind = "framework")]
-// extern "C" {}
-
-// // Define the main application struct. This is our entry point type.
-// pub struct MyApp;
-
-// // Implement the Services trait for MyApp
-// impl Services for MyApp {
-//     // Provide a list of services used by the app. Here, it's empty.
-//     fn services() -> ServiceList {
-//         ServiceList(BTreeMap::new())
-//     }
-// }
-
-// // Implement the Plugins trait for MyApp
-// impl Plugins for MyApp {
-//     // Provide a list of plugins used by the app. Currently, there are none.
-//     fn plugins(_ctx: &mut Context) -> Vec<Box<dyn Plugin>> { vec![] }
-// }
-
-// // Implement the Application trait for MyApp
-// impl Application for MyApp {
-//     // Asynchronously create the main drawable UI component
-//     async fn new(ctx: &mut Context) -> Box<dyn Drawable> {
-//         // Create the first screen
-//         let home = FirstScreen::new(ctx);
-//         // Create the main interface with the first screen as the starting page
-//         let interface = Interface::new(ctx, Box::new(home), None, None);
-//         // Return the interface wrapped in a Box
-//         Box::new(interface)
-//     }
-// }
-
-// // Macro to start the application
-// start!(MyApp);
-
-// // Define the first screen of the app
-// #[derive(Debug, Component)]
-// pub struct FirstScreen(Stack, Page);
-
-// // Implement event handling for FirstScreen (empty for now)
-// impl OnEvent for FirstScreen {}
-
-// // Implement the AppPage trait for navigation and UI behavior
-// impl AppPage for FirstScreen {
-//     // This screen does not have a navigation bar
-//     fn has_nav(&self) -> bool { false }
-
-//     // Handle page navigation. Always returns Err(self) because this page cannot navigate.
-//     fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
-//         Err(self)
-//     }
-// }
-
-// impl FirstScreen {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         // Create a header for the page
-//         let header = Header::home(
-//             // The majority of UI components will require the app context.
-//             ctx,
-//             // The text on this header will say "My Screen"
-//             "Ramp", 
-//             // There will not be an icon button on this header
-//             None
-//         );
-
-//         let font_size = ctx.theme.fonts.size;
-//         let color = ctx.theme.colors.text.heading;
-
-//         // Create an icon element
-//         let icon = Icon::new(
-//             // This element requires the app context
-//             ctx, 
-//             // We choose the "pelican_ui" icon
-//             "pelican_ui", 
-//             // The color of the icon
-//             color, 
-//             // The size of the icon. Icons are always square.
-//             128.0
-//         );
-
-//         // Create the main heading text
-//         let text = Text::new(
-//             ctx,
-//             // This text will say "Hello World!"
-//             "Welcome to Ramp",
-//             // The style of this text will be heading
-//             TextStyle::Heading,
-//             // The size will be h2
-//             font_size.h2,
-//             // The text alignment
-//             Align::Center
-//         );
-
-//         // Create subtext.
-//         let new_button = Button::new(
-//             ctx,
-//             None,
-//             None,
-//             //Label
-//             "New",
-//             None,
-//             //size
-//             ButtonSize::Large,
-//             //width
-//             ButtonWidth::Expand,
-//             //style
-//             ButtonStyle::Primary,
-//             //state
-//             ButtonState::Default,
-//             //offset
-//             None,
-//             println!("button clicked"),
-//             None,
-//             //on_click
-//         );
-
-//         // Combine icon, heading, and subtext into page content
-//         let content = Content::new(
-//             ctx,
-//             // Vertically center items
-//             Offset::Center,
-//             // All items must be boxed as Box<dyn Drawable>
-//             vec![Box::new(icon), Box::new(text), Box::new(new_button)]
-//         );
-
-//         // Return the FirstScreen with a default Stack and a 
-//         // new Page containinhg our header, content, and no bumper.
-//         FirstScreen(Stack::default(), Page::new(Some(header), content, None))
-//     }
-// }
+start!(RampGUI);

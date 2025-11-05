@@ -494,6 +494,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d8c1fef690941d3e7788d328517591fecc684c084084702d6ff1641e993699a"
 
 [[package]]
+name = "block-buffer"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
 name = "block2"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -795,6 +804,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
+name = "crypto-common"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
+dependencies = [
+ "generic-array",
+ "typenum",
+]
+
+[[package]]
 name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -864,6 +883,16 @@ dependencies = [
  "proc-macro2 1.0.101",
  "quote 1.0.41",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "digest"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
+dependencies = [
+ "block-buffer",
+ "crypto-common",
 ]
 
 [[package]]
@@ -1214,6 +1243,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "generic-array"
+version = "0.14.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bb6743198531e02858aeaea5398fcc883e71851fcbcb5a2f773e2fb6cb1edf2"
+dependencies = [
+ "typenum",
+ "version_check",
 ]
 
 [[package]]
@@ -2030,9 +2069,9 @@ dependencies = [
 
 [[package]]
 name = "maverick_os"
-version = "0.1.24"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e61f486ad83e11f949af6efa333839d7f1e4ef682dd64b18cd2479b5f37c7b8a"
+checksum = "a23cff870e6ff030c4f90507cded116e92b9ab6e6d5753a0c75c011c939584bf"
 dependencies = [
  "active_rusqlite",
  "air",
@@ -2081,6 +2120,16 @@ checksum = "8ea1f30cedd69f0a2954655f7188c6a834246d2bcf1e315e2ac40c4b24dc9519"
 dependencies = [
  "cfg-if",
  "rayon",
+]
+
+[[package]]
+name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if",
+ "digest",
 ]
 
 [[package]]
@@ -3053,36 +3102,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pelican_ui"
-version = "1.1.19"
+version = "2.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b49e6acbaefdfea817826b336c8d703a2f572c6680890ecaefe65864f9cb26e6"
-dependencies = [
- "downcast-rs 2.0.2",
- "image 0.25.8",
- "include_dir",
- "maverick_os",
- "nsvg",
- "pelican_ui_proc",
- "wgpu",
- "wgpu_canvas",
-]
-
-[[package]]
-name = "pelican_ui_proc"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4b7653eee7e4a68f7b7d1e239771e2f094f4f07dab025736369b8c6490e6eab"
-dependencies = [
- "proc-macro2 1.0.101",
- "quote 1.0.41",
- "syn 2.0.106",
-]
-
-[[package]]
-name = "pelican_ui_std"
-version = "0.2.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "281fd2260fee8befafc584efb9685e6ec0feabd43edb84f4be62dbe579d26b00"
+checksum = "92a2138aad910bec2a055896a66fdaddb7c1f4e66b8bd73e7f215e0c0fbb1f0b"
 dependencies = [
  "base64",
  "chrono",
@@ -3091,13 +3113,24 @@ dependencies = [
  "fast_image_resize",
  "image 0.25.8",
  "imageproc",
- "pelican_ui",
  "png 0.18.0",
  "qrc",
  "qrcode 0.14.1",
  "quircs",
+ "roost_ui",
  "serde",
  "uuid",
+]
+
+[[package]]
+name = "pelican_ui_proc"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71a6c853b7ef6c8b5dd8279db0833eab92cf29747437eb9ec747adc57a82bbdb"
+dependencies = [
+ "proc-macro2 1.0.101",
+ "quote 1.0.41",
+ "syn 2.0.106",
 ]
 
 [[package]]
@@ -3391,9 +3424,10 @@ version = "0.1.0"
 dependencies = [
  "embed-resource",
  "image 0.25.8",
+ "include_dir",
  "pelican_ui",
- "pelican_ui_std",
  "regex",
+ "serde",
 ]
 
 [[package]]
@@ -3642,6 +3676,24 @@ name = "rgb"
 version = "0.8.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
+
+[[package]]
+name = "roost_ui"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac16992a2ff3b19af37420654c233089e05029e6edff5d3e35df38816e9f6ae0"
+dependencies = [
+ "downcast-rs 2.0.2",
+ "image 0.25.8",
+ "include_dir",
+ "maverick_os",
+ "nsvg",
+ "pelican_ui_proc",
+ "serde",
+ "uuid",
+ "wgpu",
+ "wgpu_canvas",
+]
 
 [[package]]
 name = "rusqlite"
@@ -4488,6 +4540,7 @@ checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
 dependencies = [
  "getrandom 0.3.3",
  "js-sys",
+ "md-5",
  "wasm-bindgen",
 ]
 

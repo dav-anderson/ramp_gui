@@ -1,86 +1,86 @@
-use pelican_ui::{Component, Context, Plugins, Plugin, start, Application};
-use pelican_ui::drawable::{Drawable, Component, Align};
-use pelican_ui::layout::{Layout, SizeRequest, Area};
-use pelican_ui::events::OnEvent;
-use std::collections::BTreeMap;
-use pelican_ui_std::AppPage;
-use pelican_ui_std::components::interface::general::{Bumper, Interface, Page, Content, Header};
-use pelican_ui_std::layout::{Stack, Offset};
-use pelican_ui_std::components::{Text, TextStyle, Icon, ExpandableText,};
-use pelican_ui_std::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize, IconButton};
-use pelican_ui_std::events::NavigateEvent;
-use crate::pages::start::StartScreen;
-use crate::pages::error::ErrorScreen;
+// use pelican::{Component, Context, Plugins, Plugin, start, Application};
+// use pelican::drawable::{Drawable, Component, Align};
+// use pelican::layout::{Layout, SizeRequest, Area};
+// use pelican::events::OnEvent;
+// use std::collections::BTreeMap;
+// use pelican::AppPage;
+// use pelican::components::interface::general::{Bumper, Interface, Page, Content, Header};
+// use pelican::layout::{Stack, Offset};
+// use pelican::components::{Text, TextStyle, Icon, ExpandableText,};
+// use pelican::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize, IconButton};
+// use pelican::events::NavigateEvent;
+// use crate::pages::start::StartScreen;
+// use crate::pages::error::ErrorScreen;
 
 
-#[derive(Debug, Component)]
-pub struct WASMScreen(Stack, Page);
+// #[derive(Debug, Component)]
+// pub struct WASMScreen(Stack, Page);
 
-// Implement event handling for WASMScreen
-impl OnEvent for WASMScreen {}
+// // Implement event handling for WASMScreen
+// impl OnEvent for WASMScreen {}
 
-// Implement the AppPage trait for navigation and UI behavior   
-impl AppPage for WASMScreen {
-    fn has_nav(&self) -> bool { true }
+// // Implement the AppPage trait for navigation and UI behavior   
+// impl AppPage for WASMScreen {
+//     fn has_nav(&self) -> bool { true }
 
-    fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
-        match index {
-            0 => Ok(Box::new(ErrorScreen::new(ctx))),
-            1 => Ok(Box::new(StartScreen::new(ctx))),
-            _ => Err(self),
-        }
-    }
-}
+//     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
+//         match index {
+//             0 => Ok(Box::new(ErrorScreen::new(ctx))),
+//             1 => Ok(Box::new(StartScreen::new(ctx))),
+//             _ => Err(self),
+//         }
+//     }
+// }
 
-impl WASMScreen {
-    pub fn new(ctx: &mut Context) -> Self {
-        let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
-        // Create a header for the page
-        let header = Header::stack(
-            ctx,
-            Some(back),
-            "<ProjectName> WASM", 
-            None
-        );
+// impl WASMScreen {
+//     pub fn new(ctx: &mut Context) -> Self {
+//         let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
+//         // Create a header for the page
+//         let header = Header::stack(
+//             ctx,
+//             Some(back),
+//             "<ProjectName> WASM", 
+//             None
+//         );
 
-        let font_size = ctx.theme.fonts.size;
+//         let font_size = ctx.theme.fonts.size;
 
-        // Create the main heading text
-        let text = Text::new(
-            ctx,
-            "WIP build WASM tools go here",
-            TextStyle::Heading,
-            font_size.h2,
-            Align::Center
-        );
+//         // Create the main heading text
+//         let text = Text::new(
+//             ctx,
+//             "WIP build WASM tools go here",
+//             TextStyle::Heading,
+//             font_size.h2,
+//             Align::Center
+//         );
 
-        // Combine icon, heading, and subtext into page content
-        let content = Content::new(
-            ctx,
-            // Vertically center items
-            Offset::Center,
-            // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text)]
-        );
+//         // Combine icon, heading, and subtext into page content
+//         let content = Content::new(
+//             ctx,
+//             // Vertically center items
+//             Offset::Center,
+//             // All items must be boxed as Box<dyn Drawable>
+//             vec![Box::new(text)]
+//         );
 
-         // Create a new project.
-         let debug_btn = Button::primary(
-            ctx,
-            "Build Debug",
-            //on_click
-            |ctx: &mut Context| println!("Debug button")
-        );
+//          // Create a new project.
+//          let debug_btn = Button::primary(
+//             ctx,
+//             "Build Debug",
+//             //on_click
+//             |ctx: &mut Context| println!("Debug button")
+//         );
         
-        // Create a new project.
-        let release_btn = Button::primary(
-            ctx,
-            "Build Release",
-            //on_click
-            |ctx: &mut Context| println!("Release button")
-        );
+//         // Create a new project.
+//         let release_btn = Button::primary(
+//             ctx,
+//             "Build Release",
+//             //on_click
+//             |ctx: &mut Context| println!("Release button")
+//         );
 
-        let bumper = Bumper::double_button(ctx, debug_btn, release_btn);
+//         let bumper = Bumper::double_button(ctx, debug_btn, release_btn);
 
-        WASMScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
-    }
-}
+//         WASMScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
+//     }
+// }
