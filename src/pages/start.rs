@@ -10,8 +10,9 @@ use pelican_ui::components::interface::general::{Bumper, Content, Header, Interf
 use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigateEvent};
 use pelican_ui::interactions::Button;
-// use crate::pages::new::NewProjectScreen;
-// use crate::pages::load::LoadProjectScreen;
+use pelican_ui::page;
+use crate::pages::new::NewProjectScreen;
+use crate::pages::load::LoadProjectScreen;
 // use crate::pages::ios::IOSScreen;
 // use crate::pages::android::AndroidScreen;
 // use crate::pages::error::{ ErrorComponent, ErrorScreen };
@@ -33,14 +34,11 @@ impl AppPage for StartScreen {
 
     // Handle page navigation. Always returns Err(self) because this page cannot navigate.
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, PelicanError> {
-        // match index {
-        //     0 => Ok(Box::new(ErrorScreen::new(ctx))),
-        //     1 => Ok(Box::new(LoadProjectScreen::new(ctx))),
-        //     2 => Ok(Box::new(NewProjectScreen::new(ctx))),
-        //     _ => Err(self),
-        // }
-        Ok(self)
-        
+        match index {
+            1 => page!(NewProjectScreen::new(ctx), self),
+            2 => page!(LoadProjectScreen::new(ctx), self),
+            _ => Err(PelicanError::InvalidPage(Some(self))),
+        }        
     }
 }
 

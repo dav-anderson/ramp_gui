@@ -1,40 +1,121 @@
-// use pelican::{Component, Context, Plugins, Plugin, start, Application};
-// use pelican::drawable::{Drawable, Component, Align};
-// use pelican::layout::{Layout, SizeRequest, Area};
-// use pelican::events::OnEvent;
-// use std::collections::BTreeMap;
-// use pelican::AppPage;
-// use pelican::components::interface::general::{Bumper, Interface, Page, Content, Header, HeaderIcon};
-// use pelican::layout::{Stack, Offset};
-// use pelican::components::{Text, TextInput, TextStyle, Icon, ExpandableText,};
-// use pelican::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize, IconButton};
-// use pelican::events::NavigateEvent;
-// use crate::pages::start::StartScreen;
-// use crate::pages::dashboard::DashboardScreen;
-// use crate::pages::error::ErrorScreen;
-// use crate::ramp::session::{Session};
-// use crate::ramp::core::{new_project};
 
-// #[derive(Debug, Component)]
-// pub struct NewProjectScreen(Stack, Page);
+use pelican_ui::drawable::{Drawable, Color, Align};
+use pelican_ui::{include_dir, drawables, Component, Context, Application, Plugin};
+use pelican_ui::layouts::{Offset, Stack};
+use pelican_ui::events::{OnEvent, Event, TickEvent};
+use pelican_ui::components::button::PrimaryButton;
+use pelican_ui::components::{ExpandableText, Icon, Text, TextStyle, TextSize, TextInput};
+use pelican_ui::components::interface::navigation::PelicanError;
+use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
+use pelican_ui::plugin::PelicanUI;
+use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigateEvent};
+use pelican_ui::interactions::Button;
+use pelican_ui::page;
+use crate::pages::start::StartScreen;
+// use crate::pages::new::DashboardScreen;
+use crate::ramp::session::{Session};
+use crate::ramp::core::{new_project};
 
-// // Implement event handling for NewProjectScreen (empty for now)
-// impl OnEvent for NewProjectScreen {}
+use serde::{Serialize, Deserialize};
 
-// // Implement the AppPage trait for navigation and UI behavior   
-// impl AppPage for NewProjectScreen {
-//     fn has_nav(&self) -> bool { false }
+//define the page
+#[derive(Debug, Component)]
+pub struct NewProjectScreen(Stack, Page);
 
-//     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
-//         match index {
-//             0 => Ok(Box::new(ErrorScreen::new(ctx))),
-//             1 => Ok(Box::new(StartScreen::new(ctx))),
-//             2 => Ok(Box::new(DashboardScreen::new(ctx))),
-            
-//             _ => Err(self),
-//         }
-//     }
-// }
+// Implement event handling for New Project Screen
+impl OnEvent for NewProjectScreen {}
+
+// Implement the AppPage trait for navigation and UI behavior
+impl AppPage for NewProjectScreen {
+    // This screen does not have a navigation bar
+    fn has_navigator(&self) -> bool { false }
+
+    // Handle page navigation. Always returns Err(self) because this page cannot navigate.
+    fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, PelicanError> {
+        match index {
+            0 => page!(Box::new(StartScreen::new(ctx)), self),
+            // 1 => page!(DashboardScreen::new(ctx), self),
+            _ => Err(PelicanError::InvalidPage(Some(self))),
+        }        
+    }
+}
+
+impl NewProjectScreen {
+    pub fn new(ctx: &mut Context) -> Result<Self, String> {
+        // if ctx.state().get_named_mut::<Session>("session").is_none(){
+        //     //create the session state if it doesn't exist
+        //     println!("creating session token");
+        //     let mut session = match Session::new() {
+        //         Ok(s) => s,
+        //         Err(e) => {
+        //             ctx.state().set_named("error".to_string(), e);
+        //             ctx.trigger_event(NavigateEvent(0));
+        //             Session::default()
+        //         }
+        //     };
+        //     println!("blank session token: {:?}", session);
+        //     println!("populating session token");
+        //     match session.get_all_paths() { //update the session state from config file
+        //         Ok(())=> {},
+        //         Err(e) => {
+        //             ctx.state().set_named("error".to_string(), e);
+        //             ctx.trigger_event(NavigateEvent(0));
+        //         }
+        //     };
+        //     println!("populated session token: {:?}", session);
+        //     println!("saving session token");
+        //     ctx.state().set_named("session".to_string(), session);
+        // }
+        //page header
+        let header = Header::stack(
+            //app context
+            ctx,
+            //header string
+            "Ramp", 
+        );
+
+        //main heading text
+        let text = ExpandableText::new(
+            ctx,
+            //content
+            "Name your Project",
+            //Size
+            TextSize::H2,
+            //style
+            TextStyle::Heading,
+            //alignment
+            Align::Center,
+            None
+        );
+
+        let mut name_input = TextInput::new(
+            ctx,
+            None,
+            Some("Give Your Project a Name"),
+            Some("Project name..."),
+            Some("This name will be applied across the app template"),
+            None
+        );
+
+        // Combine icon, heading, and subtext into page content
+        let content = Content::new(
+            ctx,
+            // Vertically center items
+            Offset::Center,
+            // All items must be boxed as Box<dyn Drawable>
+            vec![Box::new(text), Box::new(name_input)]
+        );
+
+        let bumper = Bumper::home(ctx, "create", None);
+
+        // Return the StartScreen with a default Stack
+        Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
+    }
+}
+
+
+
+
 
 // impl NewProjectScreen {
 //     pub fn new(ctx: &mut Context) -> Self {
