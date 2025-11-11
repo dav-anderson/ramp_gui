@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-pelican_ui = "2.0.5"
+pelican_ui = "2.0.6"
 include_dir = "0.7.4"
 serde = "1.0.228"
 image = "0.25.1"

@@ -3,19 +3,50 @@ use pelican_ui::{include_dir, drawables, Component, Context, Application, Plugin
 use pelican_ui::layouts::{Offset, Stack};
 use pelican_ui::events::{OnEvent, Event, TickEvent};
 use pelican_ui::components::button::PrimaryButton;
-use pelican_ui::components::{ExpandableText, Icon, Text, TextStyle, TextSize, TextInput};
-use pelican_ui::components::interface::navigation::PelicanError;
+use pelican_ui::components::{ExpandableText, Icon, RadioSelector, Text, TextStyle, TextSize, TextInput};
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
 use pelican_ui::plugin::PelicanUI;
-use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigateEvent};
+use pelican_ui::components::interface::navigation::{AppPage, RootInfo};
 use pelican_ui::interactions::Button;
-use pelican_ui::page;
+use pelican_ui::utils::Callback;
+use std::path::Path;
+use std::fs;
 use crate::pages::start::StartScreen;
-// use crate::pages::new::DashboardScreen;
+// use crate::pages::dashboard::DashboardScreen;
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
 
 use serde::{Serialize, Deserialize};
+
+// #[derive (Debug)]
+// pub struct project_paths;
+
+// impl project_paths {
+//     fn get_items_at_path(path: &str) -> Result<Vec<(&str, &str, Callback)>, std::io::Error> {
+//         let path = Path::new(path);
+//         if !path.is_dir() {
+//             return Err(std::io::Error::new(
+//                 std::io::ErrorKind::InvalidInput,
+//                 "Path is not a directory",
+//             ));
+//         }
+    
+//         let mut items = Vec::new();
+//         for entry in fs::read_dir(path)? {
+//             let entry = entry?;
+//             let name = entry.file_name().into_string().map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
+//             let name_first = name.clone();
+//             let name_second = "ramp project";
+//             let name_for_callback = name.clone();
+    
+//             let callback = move |_| {
+//                 println!("Selected {}", name_for_callback)
+//             };
+//             items.push((name_first, name_second, callback));
+//         }
+//         Ok(items)
+//     }
+// }
 
 //define the page
 #[derive(Debug, Component)]
@@ -25,22 +56,17 @@ pub struct LoadProjectScreen(Stack, Page);
 impl OnEvent for LoadProjectScreen {}
 
 // Implement the AppPage trait for navigation and UI behavior
-impl AppPage for LoadProjectScreen {
-    // This screen does not have a navigation bar
-    fn has_navigator(&self) -> bool { false }
-
-    // Handle page navigation. Always returns Err(self) because this page cannot navigate.
-    fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, PelicanError> {
-        match index {
-            0 => page!(Box::new(StartScreen::new(ctx)), self),
-            // 1 => page!(DashboardScreen::new(ctx), self),
-            _ => Err(PelicanError::InvalidPage(Some(self))),
-        }        
-    }
-}
+impl AppPage for LoadProjectScreen {}
 
 impl LoadProjectScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
+        let session = ctx.state().get_named_mut::<Session>("session");
+
+        let projects_list:Vec<(&str, &str, Callback)> = vec![
+            ("test", "description", Box::new(move |_| {println!("Selected test") })), 
+            ("test2", "description2", Box::new(move |_| {println!("Selected test2")})),
+            ("test3", "description3", Box::new(move |_| {println!("Selected test3")})),
+        ];
         //page header
         let header = Header::stack(
             //app context
@@ -64,17 +90,13 @@ impl LoadProjectScreen {
         );
 
         //main heading text
-        let list_select = ExpandableText::new(
+        let list_select = RadioSelector::new(
+            //context
             ctx,
-            //content
-            "project select component goes here",
-            //Size
-            TextSize::H4,
-            //style
-            TextStyle::Heading,
-            //alignment
-            Align::Center,
-            None
+            projects_list.len(),
+            projects_list
+            //index: usize,
+            //items: Vec<(&str, &str, Callback)>,
         );
 
         // Combine icon, heading, and subtext into page content
@@ -86,112 +108,9 @@ impl LoadProjectScreen {
             vec![Box::new(text), Box::new(list_select)]
         );
 
-        let bumper = Bumper::home(ctx, "load", None);
+        // let bumper = Bumper::home(ctx, "load", None);
 
         // Return the StartScreen with a default Stack
-        Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
+        Ok(Self(Stack::default(), Page::new(header, content, None)))
     }
 }
-
-
-
-
-
-
-
-// use pelican::{Component, Context, Plugins, Plugin, start, Application};
-// use pelican::drawable::{Drawable, Component, Align};
-// use pelican::layout::{Layout, SizeRequest, Area};
-// use pelican::events::OnEvent;
-// use std::collections::BTreeMap;
-// use pelican::AppPage;
-// use pelican::components::interface::general::{Bumper, Interface, Page, Content, Header};
-// use pelican::layout::{Stack, Offset};
-// use pelican::components::{Text, TextStyle, Icon, ExpandableText,};
-// use pelican::components::button::{Button, ButtonStyle, ButtonWidth, ButtonState, ButtonSize, IconButton};
-// use pelican::events::NavigateEvent;
-// use crate::pages::start::StartScreen;
-// use crate::pages::error::ErrorScreen;
-// use crate::pages::dashboard::DashboardScreen;
-
-// #[derive(Debug, Component)]
-// pub struct LoadProjectScreen(Stack, Page);
-
-// // Implement event handling for LoadProjectScreen
-// impl OnEvent for LoadProjectScreen {}
-
-// // Implement the AppPage trait for navigation and UI behavior   
-// impl AppPage for LoadProjectScreen {
-//     fn has_nav(&self) -> bool { false }
-
-//     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> {
-//         match index {
-//             0 => Ok(Box::new(ErrorScreen::new(ctx))),
-//             1 => Ok(Box::new(StartScreen::new(ctx))),
-//             2 => Ok(Box::new(DashboardScreen::new(ctx))),
-            
-//             _ => Err(self),
-//         }
-//     }
-// }
-
-// impl LoadProjectScreen {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
-//         // Create a header for the page
-//         let header = Header::stack(
-//             ctx,
-//             Some(back),
-//             "Load Existing Project", 
-//             None
-//         );
-
-//         let font_size = ctx.theme.fonts.size;
-
-//         // Create the main heading text
-//         let text = Text::new(
-//             ctx,
-//             "selectable list goes here",
-//             TextStyle::Heading,
-//             font_size.h2,
-//             Align::Center
-//         );
-
-//         // Create subtext.
-//         // let new_button = Button::new(
-//         //     ctx,
-//         //     "New",
-//         //     |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0))
-//         //     //on_click
-//         // );
-
-//         // Combine icon, heading, and subtext into page content
-//         let content = Content::new(
-//             ctx,
-//             // Vertically center items
-//             Offset::Center,
-//             // All items must be boxed as Box<dyn Drawable>
-//             vec![Box::new(text)]
-//         );
-
-//         // Create a new project.
-//         let load_btn = Button::primary(
-//             ctx,
-//             "Load",
-//             //on_click
-//             |ctx: &mut Context| ctx.trigger_event(NavigateEvent(2))
-//         );
-        
-//         // Create a new project.
-//         let delete_btn = Button::primary(
-//             ctx,
-//             "Delete",
-//             //on_click
-//             |ctx: &mut Context| println!("Delete button")
-//         );
-
-//         let bumper = Bumper::double_button(ctx, load_btn, delete_btn);
-
-//         LoadProjectScreen(Stack::default(), Page::new(Some(header), content, Some(bumper)))
-//     }
-// }

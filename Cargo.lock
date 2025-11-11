@@ -3102,9 +3102,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pelican_ui"
-version = "2.0.5"
+version = "2.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92a2138aad910bec2a055896a66fdaddb7c1f4e66b8bd73e7f215e0c0fbb1f0b"
+checksum = "2a9c46da1409e3f715dd124de8d6a8f0491e8cdba2fb0e1100a880883fa70926"
 dependencies = [
  "base64",
  "chrono",
@@ -3124,9 +3124,9 @@ dependencies = [
 
 [[package]]
 name = "pelican_ui_proc"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71a6c853b7ef6c8b5dd8279db0833eab92cf29747437eb9ec747adc57a82bbdb"
+checksum = "e9136561dcaa83fba7a20a399fb725bcce65703deb5fcf5b00a378e67c9a12bc"
 dependencies = [
  "proc-macro2 1.0.101",
  "quote 1.0.41",
@@ -3679,9 +3679,9 @@ checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
 
 [[package]]
 name = "roost_ui"
-version = "2.0.5"
+version = "2.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac16992a2ff3b19af37420654c233089e05029e6edff5d3e35df38816e9f6ae0"
+checksum = "ab8a9cdf8ada02ac894279eb24988ca2b9961ba26f282abaf5379c9a4c653793"
 dependencies = [
  "downcast-rs 2.0.2",
  "image 0.25.8",

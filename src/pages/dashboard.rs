@@ -1,3 +1,97 @@
+// use pelican_ui::drawable::{Drawable, Color, Align};
+// use pelican_ui::{include_dir, drawables, Component, Context, Application, Plugin};
+// use pelican_ui::layouts::{Offset, Stack};
+// use pelican_ui::events::{OnEvent, Event, TickEvent};
+// use pelican_ui::components::button::PrimaryButton;
+// use pelican_ui::components::{ExpandableText, Icon, Text, TextStyle, TextSize, TextInput};
+// use pelican_ui::components::interface::navigation::PelicanError;
+// use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
+// use pelican_ui::plugin::PelicanUI;
+// use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigateEvent};
+// use pelican_ui::interactions::Button;
+// use pelican_ui::page;
+// use crate::pages::start::StartScreen;
+// // use crate::pages::new::DashboardScreen;
+// use crate::ramp::session::{Session};
+// use crate::ramp::core::{new_project};
+
+// use serde::{Serialize, Deserialize};
+
+// //define the page
+// #[derive(Debug, Component)]
+// pub struct DashboardScreen(Stack, Page);
+
+// // Implement event handling for New Project Screen
+// impl OnEvent for DashboardScreen {}
+
+// // Implement the AppPage trait for navigation and UI behavior
+// impl AppPage for DashboardScreen {
+//     // This screen does not have a navigation bar
+//     fn has_navigator(&self) -> bool { false }
+
+//     // Handle page navigation. Always returns Err(self) because this page cannot navigate.
+//     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, PelicanError> {
+//         match index {
+//             0 => page!(Box::new(StartScreen::new(ctx)), self),
+//             _ => Err(PelicanError::InvalidPage(Some(self))),
+//         }        
+//     }
+// }
+
+// impl DashboardScreen {
+//     pub fn new(ctx: &mut Context) -> Result<Self, String> {
+//         //page header
+//         let header = Header::stack(
+//             //app context
+//             ctx,
+//             //header string
+//             "<projectname> dashboard", 
+//         );
+
+//         //main heading text
+//         let text = ExpandableText::new(
+//             ctx,
+//             //content
+//             "WIP. General project settings go here",
+//             //Size
+//             TextSize::H2,
+//             //style
+//             TextStyle::Heading,
+//             //alignment
+//             Align::Center,
+//             None
+//         );
+
+//         //main heading text
+//         let settings = ExpandableText::new(
+//             ctx,
+//             //content
+//             "Nav bar needed for output specific ooptions",
+//             //Size
+//             TextSize::H4,
+//             //style
+//             TextStyle::Heading,
+//             //alignment
+//             Align::Center,
+//             None
+//         );
+
+//         // Combine icon, heading, and subtext into page content
+//         let content = Content::new(
+//             ctx,
+//             // Vertically center items
+//             Offset::Center,
+//             // All items must be boxed as Box<dyn Drawable>
+//             vec![Box::new(text), Box::new(settings)]
+//         );
+
+//         // Return the StartScreen with a default Stack
+//         Ok(Self(Stack::default(), Page::new(header, content, None)))
+//     }
+// }
+
+
+
 // use pelican::{Component, Context, Plugins, Plugin, start, Application};
 // use pelican::drawable::{Drawable, Component, Align};
 // use pelican::layout::{Layout, SizeRequest, Area};

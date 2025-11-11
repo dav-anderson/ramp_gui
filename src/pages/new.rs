@@ -5,14 +5,12 @@ use pelican_ui::layouts::{Offset, Stack};
 use pelican_ui::events::{OnEvent, Event, TickEvent};
 use pelican_ui::components::button::PrimaryButton;
 use pelican_ui::components::{ExpandableText, Icon, Text, TextStyle, TextSize, TextInput};
-use pelican_ui::components::interface::navigation::PelicanError;
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
 use pelican_ui::plugin::PelicanUI;
-use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigateEvent};
+use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
-use pelican_ui::page;
 use crate::pages::start::StartScreen;
-// use crate::pages::new::DashboardScreen;
+// use crate::pages::dashboard::DashboardScreen;
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
 
@@ -26,19 +24,7 @@ pub struct NewProjectScreen(Stack, Page);
 impl OnEvent for NewProjectScreen {}
 
 // Implement the AppPage trait for navigation and UI behavior
-impl AppPage for NewProjectScreen {
-    // This screen does not have a navigation bar
-    fn has_navigator(&self) -> bool { false }
-
-    // Handle page navigation. Always returns Err(self) because this page cannot navigate.
-    fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) -> Result<Box<dyn AppPage>, PelicanError> {
-        match index {
-            0 => page!(Box::new(StartScreen::new(ctx)), self),
-            // 1 => page!(DashboardScreen::new(ctx), self),
-            _ => Err(PelicanError::InvalidPage(Some(self))),
-        }        
-    }
-}
+impl AppPage for NewProjectScreen {}
 
 impl NewProjectScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
@@ -106,10 +92,10 @@ impl NewProjectScreen {
             vec![Box::new(text), Box::new(name_input)]
         );
 
-        let bumper = Bumper::home(ctx, "create", None);
+        // let bumper = Bumper::home(ctx, "create", None);
 
         // Return the StartScreen with a default Stack
-        Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
+        Ok(Self(Stack::default(), Page::new(header, content, None)))
     }
 }
 
