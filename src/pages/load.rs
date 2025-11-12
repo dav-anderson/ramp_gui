@@ -6,13 +6,13 @@ use pelican_ui::components::button::PrimaryButton;
 use pelican_ui::components::{ExpandableText, Icon, RadioSelector, Text, TextStyle, TextSize, TextInput};
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
 use pelican_ui::plugin::PelicanUI;
-use pelican_ui::components::interface::navigation::{AppPage, RootInfo};
+use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
 use pelican_ui::utils::Callback;
 use std::path::Path;
 use std::fs;
 use crate::pages::start::StartScreen;
-// use crate::pages::dashboard::DashboardScreen;
+use crate::pages::dashboard::DashboardScreen;
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
 
@@ -108,9 +108,20 @@ impl LoadProjectScreen {
             vec![Box::new(text), Box::new(list_select)]
         );
 
-        // let bumper = Bumper::home(ctx, "load", None);
+        //
+        let bumper = Bumper::home(
+            ctx, 
+            ("Load", |ctx: &mut Context| {
+                let page = Box::new(DashboardScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
+            }), 
+            Some(
+                ("Delete", Box::new(|ctx: &mut Context| {
+                    println!("delete entry")
+                })))
+        );
 
         // Return the StartScreen with a default Stack
-        Ok(Self(Stack::default(), Page::new(header, content, None)))
+        Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }

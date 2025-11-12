@@ -14,6 +14,8 @@ use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
 use pelican_ui::theme::Theme;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo};
+use crate::pages::dashboard::DashboardScreen;
+
 
 #[cfg(target_os = "macos")]
 #[link(name = "PhotosUI", kind = "framework")]
@@ -90,14 +92,14 @@ impl Application for RampGUI {
         // Create the first screen
         // let home = StartScreen::new(ctx);
         let home = RootInfo::icon("home", "home", StartScreen::new(ctx).ok().unwrap());
-        // let new = RootInfo::icon("pelican", "new", NewProjectScreen::new(ctx).ok().unwrap());
+        let dashboard = RootInfo::icon("car", "dashboard", DashboardScreen::new(ctx).ok().unwrap());
         // let ios_nav = ("boot", "IOS".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(IOSScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
         // let android_nav = ("cancel", "Android".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(AndroidScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
         // let navigation = (0usize, vec![android_nav], vec![ios_nav
         // ]);
         
         // Create the main interface with the first screen as the starting page
-        Interface::new(ctx, vec![home])
+        Interface::new(ctx, vec![home, dashboard])
     }
 
     //provide a global theme

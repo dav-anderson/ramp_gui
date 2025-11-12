@@ -10,7 +10,7 @@ use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
 use crate::pages::start::StartScreen;
-// use crate::pages::dashboard::DashboardScreen;
+use crate::pages::dashboard::DashboardScreen;
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
 
@@ -92,10 +92,15 @@ impl NewProjectScreen {
             vec![Box::new(text), Box::new(name_input)]
         );
 
-        // let bumper = Bumper::home(ctx, "create", None);
-
+        let bumper = Bumper::home(
+            ctx, 
+            ("Create", |ctx: &mut Context| {
+                let page = Box::new(DashboardScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
+            }), None
+        );
         // Return the StartScreen with a default Stack
-        Ok(Self(Stack::default(), Page::new(header, content, None)))
+        Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }
 
