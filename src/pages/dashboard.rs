@@ -42,7 +42,7 @@ impl DashboardScreen {
         let text = ExpandableText::new(
             ctx,
             //content
-            "Dashboard WIP",
+            "<Project Name>",
             //Size
             TextSize::H2,
             //style

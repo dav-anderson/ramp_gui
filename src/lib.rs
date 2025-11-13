@@ -15,6 +15,12 @@ use pelican_ui::components::interface::general::{Bumper, Content, Header, Interf
 use pelican_ui::theme::Theme;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo};
 use crate::pages::dashboard::DashboardScreen;
+use crate::pages::ios::IOSScreen;
+use crate::pages::android::AndroidScreen;
+use crate::pages::linux::LinuxScreen;
+use crate::pages::macos::MacOSScreen;
+use crate::pages::wasm::WASMScreen;
+use crate::pages::windows::WindowsScreen;
 
 
 #[cfg(target_os = "macos")]
@@ -89,17 +95,18 @@ pub struct RampGUI;
 impl Application for RampGUI {
     // Asynchronously create the main drawable UI component
     fn interface(ctx: &mut Context) -> Interface {
-        // Create the first screen
-        // let home = StartScreen::new(ctx);
+        // Create the navigation bar
         let home = RootInfo::icon("home", "home", StartScreen::new(ctx).ok().unwrap());
         let dashboard = RootInfo::icon("car", "dashboard", DashboardScreen::new(ctx).ok().unwrap());
-        // let ios_nav = ("boot", "IOS".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(IOSScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
-        // let android_nav = ("cancel", "Android".to_string(), None, Some(Box::new(|ctx: &mut Context| Box::new(AndroidScreen::new(ctx)) as Box<dyn AppPage>) as Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>));
-        // let navigation = (0usize, vec![android_nav], vec![ios_nav
-        // ]);
+        let ios = RootInfo::icon("phone", "ios", IOSScreen::new(ctx).ok().unwrap());
+        let android = RootInfo::icon("phone", "android", AndroidScreen::new(ctx).ok().unwrap());
+        let macos = RootInfo::icon("phone", "macos", MacOSScreen::new(ctx).ok().unwrap());
+        let windows = RootInfo::icon("phone", "windows", WindowsScreen::new(ctx).ok().unwrap());
+        let linux = RootInfo::icon("phone", "linux", LinuxScreen::new(ctx).ok().unwrap());
+        let wasm = RootInfo::icon("phone", "wasm", WASMScreen::new(ctx).ok().unwrap());
         
-        // Create the main interface with the first screen as the starting page
-        Interface::new(ctx, vec![home, dashboard])
+        // Create the main interface with navgiation bar
+        Interface::new(ctx, vec![home, dashboard, ios, android, macos, windows, linux, wasm])
     }
 
     //provide a global theme
