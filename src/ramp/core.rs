@@ -1455,6 +1455,9 @@ pub fn create_app_bundle_id(session: &mut Session) -> io::Result<Option<String>>
 }
 
 pub fn build_output(session: &mut Session, target_os: String, release: bool) -> io::Result<()> {
+    //TODO force this prefer usb deployment if avaialble
+    //TODO force this to always run the app if possible when built in debug
+    //TODO open the output in file explorer after post build is complete
     // Validate project path
     let project_path = format!(
         "{}/{}",

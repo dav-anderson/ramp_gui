@@ -56,7 +56,7 @@ impl DashboardScreen {
         let app_icon = Avatar::new(
             ctx,
             AvatarContent::Icon("icon".to_string(), AvatarIconStyle::Primary),
-            None,
+            Some(("edit", AvatarIconStyle::Primary)),
             false,
             AvatarSize::Xl,
             None,
@@ -75,7 +75,7 @@ impl DashboardScreen {
             ctx,
             None,
             Some("Apple App ID Bundle"),
-            Some("Apple_App_ID_Bundle"),
+            Some("App_ID_Bundle"),
             None,
             None
         );
