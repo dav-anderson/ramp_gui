@@ -9,7 +9,7 @@ use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
 use crate::pages::start::StartScreen;
-// use crate::pages::dashboard::DashboardScreen;
+use pelican_ui::components::avatar::{Avatar, AvatarContent, AvatarIconStyle, AvatarSize};
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
 
@@ -52,6 +52,33 @@ impl DashboardScreen {
             None
         );
 
+        //App icon goes here
+        let app_icon = Avatar::new(
+            ctx,
+            AvatarContent::Icon("icon".to_string(), AvatarIconStyle::Primary),
+            None,
+            false,
+            AvatarSize::Xl,
+            None,
+        );
+
+        let mut name_input = TextInput::new(
+            ctx,
+            None,
+            Some("Project Name"),
+            Some("project_name"),
+            None,
+            None
+        );
+
+        let mut bundle_input = TextInput::new(
+            ctx,
+            None,
+            Some("Apple App ID Bundle"),
+            Some("Apple_App_ID_Bundle"),
+            None,
+            None
+        );
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
@@ -59,7 +86,7 @@ impl DashboardScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text)]
+            vec![Box::new(text), Box::new(app_icon), Box::new(name_input), Box::new(bundle_input)]
         );
 
         // let bumper = Bumper::home(ctx, "create", None);
