@@ -41,7 +41,7 @@ impl WindowsScreen {
         let text = ExpandableText::new(
             ctx,
             //content
-            "Windows WIP",
+            "Build for Windows",
             //Size
             TextSize::H2,
             //style
@@ -61,9 +61,18 @@ impl WindowsScreen {
             vec![Box::new(text)]
         );
 
-        // let bumper = Bumper::home(ctx, "create", None);
+        let bumper = Bumper::home(
+            ctx, 
+            ("Debug", |ctx: &mut Context| {
+                println!("Debug build")
+            }), 
+            Some(
+                ("Release", Box::new(|ctx: &mut Context| {
+                    println!("release build")
+                })))
+        );
 
         // Return the StartScreen with a default Stack
-        Ok(Self(Stack::default(), Page::new(header, content, None)))
+        Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }

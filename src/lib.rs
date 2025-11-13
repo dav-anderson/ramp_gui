@@ -97,13 +97,13 @@ impl Application for RampGUI {
     fn interface(ctx: &mut Context) -> Interface {
         // Create the navigation bar
         let home = RootInfo::icon("home", "home", StartScreen::new(ctx).ok().unwrap());
-        let dashboard = RootInfo::icon("car", "dashboard", DashboardScreen::new(ctx).ok().unwrap());
-        let ios = RootInfo::icon("phone", "ios", IOSScreen::new(ctx).ok().unwrap());
-        let android = RootInfo::icon("phone", "android", AndroidScreen::new(ctx).ok().unwrap());
-        let macos = RootInfo::icon("phone", "macos", MacOSScreen::new(ctx).ok().unwrap());
-        let windows = RootInfo::icon("phone", "windows", WindowsScreen::new(ctx).ok().unwrap());
-        let linux = RootInfo::icon("phone", "linux", LinuxScreen::new(ctx).ok().unwrap());
-        let wasm = RootInfo::icon("phone", "wasm", WASMScreen::new(ctx).ok().unwrap());
+        let dashboard = RootInfo::icon("car", "General", DashboardScreen::new(ctx).ok().unwrap());
+        let ios = RootInfo::icon("phone", "IOS", IOSScreen::new(ctx).ok().unwrap());
+        let android = RootInfo::icon("phone", "Android", AndroidScreen::new(ctx).ok().unwrap());
+        let macos = RootInfo::icon("phone", "MacOS", MacOSScreen::new(ctx).ok().unwrap());
+        let windows = RootInfo::icon("phone", "Windows", WindowsScreen::new(ctx).ok().unwrap());
+        let linux = RootInfo::icon("phone", "Linux", LinuxScreen::new(ctx).ok().unwrap());
+        let wasm = RootInfo::icon("phone", "WASM", WASMScreen::new(ctx).ok().unwrap());
         
         // Create the main interface with navgiation bar
         Interface::new(ctx, vec![home, dashboard, ios, android, macos, windows, linux, wasm])
