@@ -7,11 +7,13 @@ use pelican_ui::components::{ExpandableText, Icon, Text, TextStyle, TextSize, Te
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
 use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
+use pelican_ui::pages::Error;
 use pelican_ui::interactions::Button;
 use crate::pages::start::StartScreen;
 use pelican_ui::components::avatar::{Avatar, AvatarContent, AvatarIconStyle, AvatarSize};
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
+
 
 use serde::{Serialize, Deserialize};
 
@@ -23,16 +25,23 @@ pub struct DashboardScreen(Stack, Page);
 impl OnEvent for DashboardScreen {}
 
 // Implement the AppPage trait for navigation and UI behavior
-impl AppPage for DashboardScreen {}
+impl AppPage for DashboardScreen {
+}
 
 impl DashboardScreen {
-    pub fn new(ctx: &mut Context) -> Result<Self, String> {
+    pub fn new(ctx: &mut Context) -> Result<Self, Error> {
+        let project_loaded: bool = true;
+        if !project_loaded {
+            println!("*******PROJECT NOT LOADED********");
+            let start = Box::new(StartScreen::new(ctx).unwrap());
+            ctx.trigger_event(NavigationEvent::Push(Some(start)))
+        }
         //page header
         let header = Header::home(
             //app context
             ctx,
             //header string
-            "<Project_name> Dashboard",
+            "<Project_name>",
             Some(("close", Box::new(|ctx: &mut Context| {
                 ctx.trigger_event(NavigationEvent::Reset)})
             ))
@@ -52,10 +61,13 @@ impl DashboardScreen {
             None
         );
 
+        // let avatar = ctx.assets.load_image("/Users/davidanderson/ramp_gui/assets/resources/icons/icon.png").unwrap();
+
         //App icon goes here
         let app_icon = Avatar::new(
             ctx,
-            AvatarContent::Icon("icon".to_string(), AvatarIconStyle::Primary),
+            // AvatarContent::Image(avatar),
+            AvatarContent::Icon("car".to_string(), AvatarIconStyle::Primary),
             Some(("edit", AvatarIconStyle::Primary)),
             false,
             AvatarSize::Xl,

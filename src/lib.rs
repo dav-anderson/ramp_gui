@@ -96,17 +96,16 @@ impl Application for RampGUI {
     // Asynchronously create the main drawable UI component
     fn interface(ctx: &mut Context) -> Interface {
         // Create the navigation bar
-        let home = RootInfo::icon("home", "home", StartScreen::new(ctx).ok().unwrap());
-        let dashboard = RootInfo::icon("car", "General", DashboardScreen::new(ctx).ok().unwrap());
-        let ios = RootInfo::icon("phone", "IOS", IOSScreen::new(ctx).ok().unwrap());
-        let android = RootInfo::icon("phone", "Android", AndroidScreen::new(ctx).ok().unwrap());
-        let macos = RootInfo::icon("phone", "MacOS", MacOSScreen::new(ctx).ok().unwrap());
-        let windows = RootInfo::icon("phone", "Windows", WindowsScreen::new(ctx).ok().unwrap());
-        let linux = RootInfo::icon("phone", "Linux", LinuxScreen::new(ctx).ok().unwrap());
-        let wasm = RootInfo::icon("phone", "WASM", WASMScreen::new(ctx).ok().unwrap());
+        let dashboard = RootInfo::icon("home", "General", DashboardScreen::new(ctx).ok().unwrap());
+        let ios = RootInfo::icon("app_store", "IOS", IOSScreen::new(ctx).ok().unwrap());
+        let macos = RootInfo::icon("app_store", "MacOS", MacOSScreen::new(ctx).ok().unwrap());
+        let android = RootInfo::icon("play_store", "Android", AndroidScreen::new(ctx).ok().unwrap());
+        let windows = RootInfo::icon("monitor", "Windows", WindowsScreen::new(ctx).ok().unwrap());
+        let linux = RootInfo::icon("monitor", "Linux", LinuxScreen::new(ctx).ok().unwrap());
+        let wasm = RootInfo::icon("monitor", "WASM", WASMScreen::new(ctx).ok().unwrap());
         
         // Create the main interface with navgiation bar
-        Interface::new(ctx, vec![home, dashboard, ios, android, macos, windows, linux, wasm])
+        Interface::new(ctx, vec![dashboard, android, ios, macos, windows, linux, wasm])
     }
 
     //provide a global theme
