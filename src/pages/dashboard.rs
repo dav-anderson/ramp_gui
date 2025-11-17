@@ -30,7 +30,7 @@ impl AppPage for DashboardScreen {
 
 impl DashboardScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, Error> {
-        let project_loaded: bool = true;
+        let project_loaded: bool = false;
         if !project_loaded {
             println!("*******PROJECT NOT LOADED********");
             let start = Box::new(StartScreen::new(ctx).unwrap());
@@ -43,7 +43,8 @@ impl DashboardScreen {
             //header string
             "<Project_name>",
             Some(("close", Box::new(|ctx: &mut Context| {
-                ctx.trigger_event(NavigationEvent::Reset)})
+                let page = Box::new(StartScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))})
             ))
         );
 
