@@ -33,7 +33,8 @@ impl WindowsScreen {
             //header string
             "<Project_name> Windows",
             Some(("close", Box::new(|ctx: &mut Context| {
-                ctx.trigger_event(NavigationEvent::Reset)})
+                let page = Box::new(StartScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))})
             ))
         );
 
