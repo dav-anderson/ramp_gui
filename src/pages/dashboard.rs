@@ -41,7 +41,7 @@ impl DashboardScreen {
             //app context
             ctx,
             //header string
-            "<Project_name>",
+            "General",
             Some(("close", Box::new(|ctx: &mut Context| {
                 let page = Box::new(StartScreen::new(ctx).unwrap());
                 ctx.trigger_event(NavigationEvent::Push(Some(page)))})
@@ -84,22 +84,13 @@ impl DashboardScreen {
             None
         );
 
-        let mut bundle_input = TextInput::new(
-            ctx,
-            None,
-            Some("Apple App ID Bundle"),
-            Some("App_ID_Bundle"),
-            None,
-            None
-        );
-
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
             ctx,
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text), Box::new(app_icon), Box::new(name_input), Box::new(bundle_input)]
+            vec![Box::new(text), Box::new(app_icon), Box::new(name_input)]
         );
 
         // let bumper = Bumper::home(ctx, "create", None);

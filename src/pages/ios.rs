@@ -52,6 +52,15 @@ impl IOSScreen {
             None
         );
 
+        let mut bundle_input = TextInput::new(
+            ctx,
+            None,
+            Some("Apple App ID Bundle"),
+            Some("App_ID_Bundle"),
+            None,
+            None
+        );
+
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
@@ -59,7 +68,7 @@ impl IOSScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text)]
+            vec![Box::new(text), Box::new(bundle_input)]
         );
 
         let bumper = Bumper::home(
