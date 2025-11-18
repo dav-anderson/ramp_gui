@@ -16,14 +16,11 @@ use crate::ramp::core::{new_project};
 
 use serde::{Serialize, Deserialize};
 
-//define the page
 #[derive(Debug, Component)]
 pub struct NewProjectScreen(Stack, Page);
 
-// Implement event handling for New Project Screen
 impl OnEvent for NewProjectScreen {}
 
-// Implement the AppPage trait for navigation and UI behavior
 impl AppPage for NewProjectScreen {}
 
 impl NewProjectScreen {
@@ -99,7 +96,7 @@ impl NewProjectScreen {
                 ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }), None
         );
-        // Return the StartScreen with a default Stack
+
         Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }

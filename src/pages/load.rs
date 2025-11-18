@@ -19,9 +19,9 @@ use crate::ramp::core::{new_project};
 use serde::{Serialize, Deserialize};
 
 // #[derive (Debug)]
-// pub struct project_paths;
+// pub struct projects_list;
 
-// impl project_paths {
+// impl projects_list {
 //     fn get_items_at_path(path: &str) -> Result<Vec<(&str, &str, Callback)>, std::io::Error> {
 //         let path = Path::new(path);
 //         if !path.is_dir() {
@@ -48,14 +48,11 @@ use serde::{Serialize, Deserialize};
 //     }
 // }
 
-//define the page
 #[derive(Debug, Component)]
 pub struct LoadProjectScreen(Stack, Page);
 
-// Implement event handling for New Project Screen
 impl OnEvent for LoadProjectScreen {}
 
-// Implement the AppPage trait for navigation and UI behavior
 impl AppPage for LoadProjectScreen {}
 
 impl LoadProjectScreen {
@@ -121,7 +118,6 @@ impl LoadProjectScreen {
                 })))
         );
 
-        // Return the StartScreen with a default Stack
         Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }

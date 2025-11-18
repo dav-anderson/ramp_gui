@@ -12,9 +12,6 @@ use pelican_ui::components::interface::navigation::{AppPage, RootInfo, Navigatio
 use pelican_ui::interactions::Button;
 use crate::pages::new::NewProjectScreen;
 use crate::pages::load::LoadProjectScreen;
-// use crate::pages::ios::IOSScreen;
-// use crate::pages::android::AndroidScreen;
-// use crate::pages::error::{ ErrorComponent, ErrorScreen };
 use crate::ramp::session::{Session};
 
 use serde::{Serialize, Deserialize};

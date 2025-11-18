@@ -14,14 +14,11 @@ use crate::ramp::core::{new_project};
 
 use serde::{Serialize, Deserialize};
 
-//define the page
 #[derive(Debug, Component)]
 pub struct AndroidScreen(Stack, Page);
 
-// Implement event handling for New Project Screen
 impl OnEvent for AndroidScreen {}
 
-// Implement the AppPage trait for navigation and UI behavior
 impl AppPage for AndroidScreen {}
 
 impl AndroidScreen {
@@ -52,14 +49,38 @@ impl AndroidScreen {
             None
         );
 
+        let explainer = ExpandableText::new(
+            ctx,
+            //content
+            "Ramp supports streaming install via usb tether. Please connect an Android device with developer debugging enabled.",
+            //Size
+            TextSize::H3,
+            //style
+            TextStyle::Primary,
+            //alignment
+            Align::Center,
+            None
+        );
 
-        // Combine icon, heading, and subtext into page content
+        let tether = ExpandableText::new(
+            ctx,
+            //content
+            "Device Connection Status: Not Ready",
+            //Size
+            TextSize::H4,
+            //style
+            TextStyle::Secondary,
+            //alignment
+            Align::Center,
+            None
+        );
+
         let content = Content::new(
             ctx,
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text)]
+            vec![Box::new(text), Box::new(explainer), Box::new(tether)]
         );
 
         let bumper = Bumper::home(
@@ -73,7 +94,6 @@ impl AndroidScreen {
                 })))
         );
 
-        // Return the StartScreen with a default Stack
         Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }

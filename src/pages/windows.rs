@@ -14,14 +14,11 @@ use crate::ramp::core::{new_project};
 
 use serde::{Serialize, Deserialize};
 
-//define the page
 #[derive(Debug, Component)]
 pub struct WindowsScreen(Stack, Page);
 
-// Implement event handling for New Project Screen
 impl OnEvent for WindowsScreen {}
 
-// Implement the AppPage trait for navigation and UI behavior
 impl AppPage for WindowsScreen {}
 
 impl WindowsScreen {
@@ -73,7 +70,6 @@ impl WindowsScreen {
                 })))
         );
 
-        // Return the StartScreen with a default Stack
         Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }

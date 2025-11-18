@@ -14,14 +14,11 @@ use crate::ramp::core::{new_project};
 
 use serde::{Serialize, Deserialize};
 
-//define the page
 #[derive(Debug, Component)]
 pub struct IOSScreen(Stack, Page);
 
-// Implement event handling for New Project Screen
 impl OnEvent for IOSScreen {}
 
-// Implement the AppPage trait for navigation and UI behavior
 impl AppPage for IOSScreen {}
 
 impl IOSScreen {
@@ -61,6 +58,45 @@ impl IOSScreen {
             None
         );
 
+        let explainer = ExpandableText::new(
+            ctx,
+            //content
+            "Ramp supports streaming install via usb tether. Please connect an IOS device with developer debugging enabled. You will be required to provision the device.",
+            //Size
+            TextSize::H3,
+            //style
+            TextStyle::Primary,
+            //alignment
+            Align::Center,
+            None
+        );
+
+        let tether = ExpandableText::new(
+            ctx,
+            //content
+            "Device Connection Status: Not Ready",
+            //Size
+            TextSize::H4,
+            //style
+            TextStyle::Secondary,
+            //alignment
+            Align::Center,
+            None
+        );
+
+        let provision = ExpandableText::new(
+            ctx,
+            //content
+            "Device Provision Status: Not Ready",
+            //Size
+            TextSize::H4,
+            //style
+            TextStyle::Secondary,
+            //alignment
+            Align::Center,
+            None
+        );
+
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
@@ -68,7 +104,7 @@ impl IOSScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text), Box::new(bundle_input)]
+            vec![Box::new(text), Box::new(bundle_input), Box::new(explainer), Box::new(tether), Box::new(provision)]
         );
 
         let bumper = Bumper::home(
@@ -83,7 +119,7 @@ impl IOSScreen {
         );
 
 
-        // Return the StartScreen with a default Stack
+        // Return a default Stack
         Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
     }
 }
