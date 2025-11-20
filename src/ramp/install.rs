@@ -399,10 +399,10 @@ pub fn install_homebrew(session: &mut Session) -> io::Result<()> {
 
     let sudo_user = env::var("SUDO_USER").unwrap().to_string();
     //set permissions for homebrew
-    let permissions = Command::new("sudo").args(["chown", "-R", &sudo_user, &brew_dir]).output()?;
-    if !permissions.status.success(){
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to enable permissions for Homebrew installation directory"));
-    }
+    let permissions = Command::new("sudo")
+    .args(["chown", "-R", &sudo_user, &brew_dir])
+    .output()
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to enable permissions for Homebrew Installation directory: {}", e)))?;;
     // Set PATH for homebrew in config file
     session.set_path("homebrew_path", format!("{}/brew", brew_bin))?;
 
@@ -581,27 +581,23 @@ pub fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
         .args(&["xcodebuild", "-license", "accept"])
         .status()
         .expect("Failed to accept Xcode license");
-    println!("Xcodebuild license accept resulsts: {:?}", status);
+    println!("Xcodebuild license accept results: {:?}", status);
     if !status.success() {
-        eprintln!("Failed to accept Xcode license.");
+        println!("Failed to accept Xcode license.");
         std::process::exit(1);
     }
 
     //brew install libimobiledevice
-    let output = Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
+    Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
         .args(["install", "libimobiledevice"])
-        .output()?;
-    if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install libimobiledevice"));
-    }
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to install libimobiledevice: {}", e)));
 
     //install mingw-w64
-    let output = Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
-    .args(["install", "mingw-w64"])
-    .output()?;
-    if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install mingw-w64 windows linker"));
-    }
+    Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
+        .args(["install", "mingw-w64"])
+        .output()                
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to install mingw-w64 windows linker: {}", e)));
 
     // Install zigbuild
     println!("Installing cargo-zigbuild...");
@@ -620,12 +616,11 @@ pub fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     session.set_path("zigbuild_path", format!("{}/.cargo/bin/cargo-zigbuild", session.home))?;
 
     //brew install zig
-    let output = Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
+    Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
     .args(["install", "zig"])
-    .output()?;
-    if !output.status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install zig"));
-    }
+    .output()
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to install zig: {}", e)))?;
+
 
     //add mingw-w64 linker to the global .cargo config
     let config_path = format!("{}/.cargo/config.toml", get_user_home()?);
