@@ -15,6 +15,8 @@ use pelican_ui::interactions::Button;
 use std::io;
 use std::path::Path;
 use std::fs;
+use std::time::SystemTime;
+use chrono::{DateTime, Utc};
 use crate::pages::new::NewProjectScreen;
 use crate::pages::dashboard::DashboardScreen;
 use crate::ramp::session::{Session};
@@ -23,7 +25,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug)]
 pub struct Projects{
-    projects_list: Vec<String>
+    projects_list: Vec<(String, String)>
 }
 
 impl Projects {
@@ -37,9 +39,12 @@ impl Projects {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             if entry.file_type()?.is_dir() {
-                if let Some(name) = entry.file_name().to_str() {
-                    self.projects_list.push(name.to_string());
-                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                let metadata = fs::metadata(entry.path())?;
+                let created: SystemTime = metadata.created()?;
+                let created_dt: DateTime<Utc> = created.into();
+                let created_str = created_dt.format("%Y-%m-%d").to_string();
+                self.projects_list.push((name, created_str));   
             }
         }
         Ok(())
@@ -87,11 +92,11 @@ impl StartScreen {
         println!("projects vector: {:?}", projects);
         //TODO onclick should update the current project string in session state
         //TODO populate this list with items from the project dir, create dynamically
-        let list_items: Vec<ListItem> = projects.projects_list.iter().map(|project| {
+        let list_items: Vec<ListItem> = projects.projects_list.iter().map(|(name, date)| {
             ListItem::new(
                 ctx,
                 Some(AvatarContent::Icon("explore".to_string(), AvatarIconStyle::Primary)),
-                ListItemInfoLeft::new(project, "Created: placeholder", None, None),
+                ListItemInfoLeft::new(name, &format!("Created: {}", date), None, None),
                 None,
                 None,
                 None,

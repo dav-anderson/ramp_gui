@@ -3422,6 +3422,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 name = "ramp_gui"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "embed-resource",
  "image 0.25.8",
  "include_dir",

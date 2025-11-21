@@ -10,6 +10,7 @@ include_dir = "0.7.4"
 serde = "1.0.228"
 image = "0.25.1"
 regex = "1.11.1"
+chrono = "0.4"
 
 [build-dependencies]
 embed-resource = "3.0.2"
