@@ -8,6 +8,7 @@ use pelican_ui::components::{ExpandableText, Icon, Text, TextStyle, TextSize};
 // use pelican_ui::components::interface::navigation::PelicanError;
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
 use pelican_ui::components::list_item::{ListItem, ListItemGroup, ListItemInfoLeft};
+use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
@@ -33,7 +34,7 @@ impl StartScreen {
         //TODO populate this list with items from the project dir, create dynamically
         let item1 = ListItem::new(
         ctx, 
-        None, 
+        Some(AvatarContent::Icon("bitcoin".to_string(), AvatarIconStyle::Primary)), 
         ListItemInfoLeft::new("project1", "project name", None, None), 
         None, 
         None, 
@@ -45,7 +46,7 @@ impl StartScreen {
 
         let item2 = ListItem::new(
         ctx, 
-        None, 
+        Some(AvatarContent::Icon("explore".to_string(), AvatarIconStyle::Primary)), 
         ListItemInfoLeft::new("project2", "project name", None, None), 
         None, 
         None, 
@@ -57,7 +58,7 @@ impl StartScreen {
 
         let item3 = ListItem::new(
         ctx, 
-        None, 
+        Some(AvatarContent::Icon("emoji".to_string(), AvatarIconStyle::Primary)), 
         ListItemInfoLeft::new("project3", "project name", None, None), 
         None, 
         None, 
