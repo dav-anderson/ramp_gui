@@ -88,7 +88,7 @@ impl Session {
         })
     }
 
-    pub fn update_current_project(&mut self, name: String) -> io::Result<()> {
+    pub fn update_current_project(&mut self, name: &str) -> io::Result<()> {
         let new_path = format!(
             "{}/{}",
             self.projects_path.as_ref().unwrap_or(&String::new()),
@@ -103,7 +103,7 @@ impl Session {
         }
         //check the requested project for compatibility with ramp
         if Path::new(&format!("{}/.ramp", &new_path)).exists() {
-            self.current_project = Some(name);
+            self.current_project = Some(name.to_string());
             return Ok(());
         } else {
             return Err(io::Error::new(

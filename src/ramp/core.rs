@@ -219,7 +219,7 @@ pub fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
 
             println!("Template cloned successfully to {}", &new_path);
 
-            session.update_current_project(name.to_string())?;
+            session.update_current_project(name)?;
 
         }
         _ => {
@@ -244,7 +244,7 @@ pub fn new_project(session: &mut Session, name: &str) -> io::Result<()> {
 
 pub fn load_project(session: &mut Session, name: &str) -> io::Result<()> {
     println!("loading project...");
-    session.update_current_project(name.to_string())?;
+    session.update_current_project(name)?;
     Ok(())
 }
 

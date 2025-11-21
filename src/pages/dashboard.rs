@@ -27,12 +27,14 @@ impl AppPage for DashboardScreen {
 
 impl DashboardScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, Error> {
+        // let mut session = ctx.state().get_named_mut::<Session>("session").unwrap();
         let project_loaded: bool = false;
         if !project_loaded {
             println!("*******PROJECT NOT LOADED********");
             let start = Box::new(StartScreen::new(ctx).unwrap());
             ctx.trigger_event(NavigationEvent::Push(Some(start)))
         }
+        // let project_name = session.current_project.as_ref().unwrap();
         //page header
         let header = Header::home(
             //app context
@@ -49,7 +51,7 @@ impl DashboardScreen {
         let text = ExpandableText::new(
             ctx,
             //content
-            "<Project Name>",
+            "project_name",
             //Size
             TextSize::H2,
             //style
@@ -94,11 +96,8 @@ impl DashboardScreen {
             ctx, 
             ("Run", |ctx: &mut Context| {
                 println!("Run Build Locally")
-            }), 
-            Some(
-                ("Cargo Clean", Box::new(|ctx: &mut Context| {
-                    println!("Cleaning Cargo Cache")
-                })))
+            }),
+            None
         );
 
         Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))

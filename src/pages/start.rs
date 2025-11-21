@@ -12,11 +12,39 @@ use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
+use std::io;
+use std::path::Path;
+use std::fs;
 use crate::pages::new::NewProjectScreen;
 use crate::pages::dashboard::DashboardScreen;
 use crate::ramp::session::{Session};
 
 use serde::{Serialize, Deserialize};
+
+#[derive(Debug)]
+pub struct Projects{
+    projects_list: Vec<String>
+}
+
+impl Projects {
+    pub fn new() -> Self{
+        Self {projects_list: vec![]}
+    }
+
+    pub fn retrieve(&mut self, path: &str) -> io::Result<()>{
+        println!("populating projects vector");
+        let path = Path::new(path);
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                if let Some(name) = entry.file_name().to_str() {
+                    self.projects_list.push(name.to_string());
+                }
+            }
+        }
+        Ok(())
+    }
+}
 
 // Define the first screen of the app
 #[derive(Debug, Component)]
@@ -30,53 +58,15 @@ impl AppPage for StartScreen {}
 
 impl StartScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
-        //TODO onclick should update the current project string in session state
-        //TODO populate this list with items from the project dir, create dynamically
-        let item1 = ListItem::new(
-        ctx, 
-        Some(AvatarContent::Icon("bitcoin".to_string(), AvatarIconStyle::Primary)), 
-        ListItemInfoLeft::new("project1", "project name", None, None), 
-        None, 
-        None, 
-        None, 
-        |ctx: &mut Context| {
-            let page = Box::new(DashboardScreen::new(ctx).unwrap());
-            ctx.trigger_event(NavigationEvent::Push(Some(page)))
-        });
-
-        let item2 = ListItem::new(
-        ctx, 
-        Some(AvatarContent::Icon("explore".to_string(), AvatarIconStyle::Primary)), 
-        ListItemInfoLeft::new("project2", "project name", None, None), 
-        None, 
-        None, 
-        None, 
-        |ctx: &mut Context| {
-            let page = Box::new(DashboardScreen::new(ctx).unwrap());
-            ctx.trigger_event(NavigationEvent::Push(Some(page)))
-        });
-
-        let item3 = ListItem::new(
-        ctx, 
-        Some(AvatarContent::Icon("emoji".to_string(), AvatarIconStyle::Primary)), 
-        ListItemInfoLeft::new("project3", "project name", None, None), 
-        None, 
-        None, 
-        None, 
-        |ctx: &mut Context| {
-            let page = Box::new(DashboardScreen::new(ctx).unwrap());
-            ctx.trigger_event(NavigationEvent::Push(Some(page)))
-        });
-
-        let list_items = vec![item1, item2, item3];
-
+        //populate session state
+        let mut session = Session::default();
         if ctx.state().get_named_mut::<Session>("session").is_none(){
             //create the session state if it doesn't exist
             println!("creating session token");
-            let mut session = match Session::new() {
+            session = match Session::new() {
                 Ok(s) => s,
                 Err(e) => {
-                    // ctx.trigger_event(NavigateEvent(0));
+                    println!("****ERROR POPULATING SESSION TOKEN********");
                     Session::default()
                 }
             };
@@ -85,13 +75,34 @@ impl StartScreen {
             match session.get_all_paths() { //update the session state from config file
                 Ok(())=> {},
                 Err(e) => {
-                    // ctx.trigger_event(NavigateEvent(0));
+                    println!("******ERROR POPULATING SESSION TOKEN******");
                 }
             };
             println!("populated session token: {:?}", session);
             // println!("saving session token");
             // ctx.state().set_named("session".to_string(), session);
         }
+        let mut projects = Projects::new();
+        projects.retrieve(session.projects_path.as_ref().unwrap());
+        println!("projects vector: {:?}", projects);
+        //TODO onclick should update the current project string in session state
+        //TODO populate this list with items from the project dir, create dynamically
+        let list_items: Vec<ListItem> = projects.projects_list.iter().map(|project| {
+            ListItem::new(
+                ctx,
+                Some(AvatarContent::Icon("explore".to_string(), AvatarIconStyle::Primary)),
+                ListItemInfoLeft::new(project, "Created: placeholder", None, None),
+                None,
+                None,
+                None,
+                |ctx: &mut Context| {
+                    // session.update_current_project(project);
+                    let page = Box::new(DashboardScreen::new(ctx).unwrap());
+                    ctx.trigger_event(NavigationEvent::Push(Some(page)))
+                }
+            )
+        }).collect();
+
         //page header
         let header = Header::home(
             //app context
