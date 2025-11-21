@@ -399,10 +399,21 @@ pub fn install_homebrew(session: &mut Session) -> io::Result<()> {
 
     let sudo_user = env::var("SUDO_USER").unwrap().to_string();
     //set permissions for homebrew
+    println!("enabling permissions for homebrew bin");
     let permissions = Command::new("sudo")
     .args(["chown", "-R", &sudo_user, &brew_dir])
     .output()
     .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to enable permissions for Homebrew Installation directory: {}", e)))?;;
+
+    if brew_dir == "/usr/local" {
+        let admin = format!("{}:admin", &sudo_user);
+        println!("enabling permissions for /usr/local/var/homebrew");
+        Command::new("sudo")
+        .args(["chown", "-R", &admin, "/usr/local"])
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to enable permissions for /usr/local/var directory: {}", e)))?;;
+
+    }
     // Set PATH for homebrew in config file
     session.set_path("homebrew_path", format!("{}/brew", brew_bin))?;
 
@@ -616,7 +627,7 @@ pub fn install_macos_ios_toolchains(session: &mut Session) -> io::Result<()> {
     session.set_path("zigbuild_path", format!("{}/.cargo/bin/cargo-zigbuild", session.home))?;
 
     //brew install zig
-    Command::new(format!("{}/brew", session.get_path("homebrew_path")?))
+    Command::new(session.get_path("homebrew_path")?)
     .args(["install", "zig"])
     .output()
     .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to install zig: {}", e)))?;
@@ -965,6 +976,7 @@ pub fn install_android_toolchains(session: &mut Session) -> io::Result<()> {
                     } else {
                         "/usr/local/bin/brew"
                     };
+                    println!("installing OpenJDK 17 using brew path: {}", brew_path);
                     let install_output = Command::new("su")
                         .args(&[&sudo_user, "-c", &format!("{} install openjdk@17", brew_path)])
                         .output()?;

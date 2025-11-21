@@ -7,11 +7,12 @@ use pelican_ui::components::button::PrimaryButton;
 use pelican_ui::components::{ExpandableText, Icon, Text, TextStyle, TextSize};
 // use pelican_ui::components::interface::navigation::PelicanError;
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
+use pelican_ui::components::list_item::{ListItem, ListItemGroup, ListItemInfoLeft};
 use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
 use crate::pages::new::NewProjectScreen;
-use crate::pages::load::LoadProjectScreen;
+use crate::pages::dashboard::DashboardScreen;
 use crate::ramp::session::{Session};
 
 use serde::{Serialize, Deserialize};
@@ -28,6 +29,46 @@ impl AppPage for StartScreen {}
 
 impl StartScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
+        //TODO onclick should update the current project string in session state
+        //TODO populate this list with items from the project dir, create dynamically
+        let item1 = ListItem::new(
+        ctx, 
+        None, 
+        ListItemInfoLeft::new("project1", "project name", None, None), 
+        None, 
+        None, 
+        None, 
+        |ctx: &mut Context| {
+            let page = Box::new(DashboardScreen::new(ctx).unwrap());
+            ctx.trigger_event(NavigationEvent::Push(Some(page)))
+        });
+
+        let item2 = ListItem::new(
+        ctx, 
+        None, 
+        ListItemInfoLeft::new("project2", "project name", None, None), 
+        None, 
+        None, 
+        None, 
+        |ctx: &mut Context| {
+            let page = Box::new(DashboardScreen::new(ctx).unwrap());
+            ctx.trigger_event(NavigationEvent::Push(Some(page)))
+        });
+
+        let item3 = ListItem::new(
+        ctx, 
+        None, 
+        ListItemInfoLeft::new("project3", "project name", None, None), 
+        None, 
+        None, 
+        None, 
+        |ctx: &mut Context| {
+            let page = Box::new(DashboardScreen::new(ctx).unwrap());
+            ctx.trigger_event(NavigationEvent::Push(Some(page)))
+        });
+
+        let list_items = vec![item1, item2, item3];
+
         if ctx.state().get_named_mut::<Session>("session").is_none(){
             //create the session state if it doesn't exist
             println!("creating session token");
@@ -55,7 +96,7 @@ impl StartScreen {
             //app context
             ctx,
             //header string
-            "Ramp", 
+            "Welcome to Ramp", 
             //No icon button
             None
         );
@@ -70,21 +111,20 @@ impl StartScreen {
             None,
             //icon size
             128.0
-        );
+        );        
+
+        let list = drawables![ListItemGroup::new(list_items)];
+        //insert list item to load projects here
 
         //main heading text
-        let text = ExpandableText::new(
-            ctx,
-            //content
-            "Welcome to Ramp",
-            //Size
-            TextSize::H1,
-            //style
-            TextStyle::Heading,
-            //alignment
-            Align::Center,
-            None
-        );
+        // let list_select = RadioSelector::new(
+        //     //context
+        //     ctx,
+        //     projects_list.len(),
+        //     projects_list
+        //     //index: usize,
+        //     //items: Vec<(&str, &str, Callback)>,
+        // );
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
@@ -92,21 +132,17 @@ impl StartScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(icon), Box::new(text)]
+            list
         );
 
         // let bumper = Bumper::home(ctx, ("new"), Some(("load")));
         let bumper = Bumper::home(
             ctx, 
-            ("new", |ctx: &mut Context| {
+            ("new project", |ctx: &mut Context| {
                 let page = Box::new(NewProjectScreen::new(ctx).unwrap());
                 ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }), 
-            Some(
-                ("load", Box::new(|ctx: &mut Context| {
-                    let page = Box::new(LoadProjectScreen::new(ctx).unwrap());
-                    ctx.trigger_event(NavigationEvent::Push(Some(page)))
-                })))
+            None
         );
 
 
