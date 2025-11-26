@@ -29,10 +29,7 @@ impl LinuxScreen {
             ctx,
             //header string
             "<Project_name> Linux",
-            Some(("close", Box::new(|ctx: &mut Context| {
-                let page = Box::new(StartScreen::new(ctx).unwrap());
-                ctx.trigger_event(NavigationEvent::Push(Some(page)))})
-            ))
+            None
         );
 
         //main heading text

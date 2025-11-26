@@ -10,16 +10,21 @@ use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
 use crate::pages::start::StartScreen;
-use crate::pages::dashboard::DashboardScreen;
+use crate::pages::debug::DebugScreen;
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
 
 use serde::{Serialize, Deserialize};
 
+pub struct NameInput(String);
+
 #[derive(Debug, Component)]
 pub struct NewProjectScreen(Stack, Page);
 
-impl OnEvent for NewProjectScreen {}
+impl OnEvent for NewProjectScreen {
+    //create a fn that fires every tick
+    //pull the value out of textinput and insert into NameInput struct
+}
 
 impl AppPage for NewProjectScreen {}
 
@@ -91,9 +96,14 @@ impl NewProjectScreen {
 
         let bumper = Bumper::home(
             ctx, 
-            ("Create", |ctx: &mut Context| {
-                let page = Box::new(DashboardScreen::new(ctx).unwrap());
+            ("Create", move |ctx: &mut Context| {
+                // let name_input = ctx.state().get::<NameInput>().unwrap().0.clone();
+                let mut session = ctx.state().get_mut::<Session>().unwrap();
+                // new_project(&mut session, &name_input.value());
+                // drop(session);
+                let page = Box::new(DebugScreen::new(ctx).unwrap());
                 ctx.trigger_event(NavigationEvent::Push(Some(page)))
+
             }), None
         );
 

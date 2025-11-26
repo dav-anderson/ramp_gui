@@ -18,7 +18,7 @@ use std::fs;
 use std::time::SystemTime;
 use chrono::{DateTime, Utc};
 use crate::pages::new::NewProjectScreen;
-use crate::pages::dashboard::DashboardScreen;
+use crate::pages::debug::DebugScreen;
 use crate::ramp::session::{Session};
 
 use serde::{Serialize, Deserialize};
@@ -65,7 +65,7 @@ impl StartScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
         //populate session state
         let mut session = Session::default();
-        if ctx.state().get_named_mut::<Session>("session").is_none(){
+        if ctx.state().get_mut::<Session>().is_none(){
             //create the session state if it doesn't exist
             println!("creating session token");
             session = match Session::new() {
@@ -102,7 +102,7 @@ impl StartScreen {
                 None,
                 |ctx: &mut Context| {
                     // session.update_current_project(project);
-                    let page = Box::new(DashboardScreen::new(ctx).unwrap());
+                    let page = Box::new(DebugScreen::new(ctx).unwrap());
                     ctx.trigger_event(NavigationEvent::Push(Some(page)))
                 }
             )

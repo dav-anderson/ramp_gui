@@ -1,9 +1,10 @@
 pub mod start;
 pub mod new;
-pub mod dashboard;
+pub mod settings;
 pub mod ios;
 pub mod macos;
 pub mod android;
 pub mod windows;
 pub mod linux;
 pub mod wasm;
+pub mod debug;

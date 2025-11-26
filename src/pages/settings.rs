@@ -18,14 +18,14 @@ use crate::ramp::core::{new_project};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Component)]
-pub struct DashboardScreen(Stack, Page);
+pub struct SettingsScreen(Stack, Page);
 
-impl OnEvent for DashboardScreen {}
+impl OnEvent for SettingsScreen {}
 
-impl AppPage for DashboardScreen {
+impl AppPage for SettingsScreen {
 }
 
-impl DashboardScreen {
+impl SettingsScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, Error> {
         // let mut session = ctx.state().get_named_mut::<Session>("session").unwrap();
         let project_loaded: bool = false;
@@ -41,10 +41,7 @@ impl DashboardScreen {
             ctx,
             //header string
             "General",
-            Some(("close", Box::new(|ctx: &mut Context| {
-                let page = Box::new(StartScreen::new(ctx).unwrap());
-                ctx.trigger_event(NavigationEvent::Push(Some(page)))})
-            ))
+            None
         );
 
         //main heading text
@@ -94,8 +91,9 @@ impl DashboardScreen {
 
         let bumper = Bumper::home(
             ctx, 
-            ("Run", |ctx: &mut Context| {
-                println!("Run Build Locally")
+            ("Close Project", |ctx: &mut Context| {
+                let page = Box::new(StartScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }),
             None
         );

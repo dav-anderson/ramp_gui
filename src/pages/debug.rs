@@ -15,20 +15,35 @@ use crate::ramp::core::{new_project};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Component)]
-pub struct WindowsScreen(Stack, Page);
+pub struct DebugScreen(Stack, Page);
 
-impl OnEvent for WindowsScreen {}
+impl OnEvent for DebugScreen {}
 
-impl AppPage for WindowsScreen {}
+impl AppPage for DebugScreen {}
 
-impl WindowsScreen {
+impl DebugScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
+        // let list_items: Vec<ListItem> = devices.devices_list.iter().map(|(name, date)| {
+        //     ListItem::new(
+        //         ctx,
+        //         Some(AvatarContent::Icon("explore".to_string(), AvatarIconStyle::Primary)),
+        //         ListItemInfoLeft::new(name, &format!("Created: {}", date), None, None),
+        //         None,
+        //         None,
+        //         None,
+        //         |ctx: &mut Context| {
+        //             // session.update_current_project(project);
+        //             let page = Box::new(DebugScreen::new(ctx).unwrap());
+        //             ctx.trigger_event(NavigationEvent::Push(Some(page)))
+        //         }
+        //     )
+        // }).collect();
         //page header
         let header = Header::home(
             //app context
             ctx,
             //header string
-            "<Project_name> Windows",
+            "<Project_name> Debug",
             None
         );
 
@@ -36,7 +51,7 @@ impl WindowsScreen {
         let text = ExpandableText::new(
             ctx,
             //content
-            "Build for Windows",
+            "Click on a device to run your app",
             //Size
             TextSize::H2,
             //style
@@ -46,6 +61,7 @@ impl WindowsScreen {
             None
         );
 
+        // let list = drawables![ListItemGroup::new(list_items)];
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
@@ -53,20 +69,8 @@ impl WindowsScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text)]
+            vec![Box::new(text)] //, Box::new(list)
         );
-
-        let bumper = Bumper::home(
-            ctx, 
-            ("Debug", |ctx: &mut Context| {
-                println!("Debug build")
-            }), 
-            Some(
-                ("Release", Box::new(|ctx: &mut Context| {
-                    println!("release build")
-                })))
-        );
-
-        Ok(Self(Stack::default(), Page::new(header, content, Some(bumper))))
+        Ok(Self(Stack::default(), Page::new(header, content, None)))
     }
 }
