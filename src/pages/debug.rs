@@ -8,6 +8,8 @@ use pelican_ui::components::interface::general::{Bumper, Content, Header, Interf
 use pelican_ui::plugin::PelicanUI;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo, NavigationEvent};
 use pelican_ui::interactions::Button;
+use pelican_ui::components::list_item::{ListItem, ListItemGroup, ListItemInfoLeft};
+use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use crate::pages::start::StartScreen;
 use crate::ramp::session::{Session};
 use crate::ramp::core::{new_project};
@@ -23,6 +25,18 @@ impl AppPage for DebugScreen {}
 
 impl DebugScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
+        let local: ListItem = ListItem::new(
+            ctx,
+            Some(AvatarContent::Icon("monitor".to_string(), AvatarIconStyle::Primary)),
+            ListItemInfoLeft::new("MacOS Desktop", "Click to run", None, None),
+            None,
+            None,
+            None,
+            |ctx: &mut Context| {
+                println!("deploying to local")
+            }
+
+        );
         // let list_items: Vec<ListItem> = devices.devices_list.iter().map(|(name, date)| {
         //     ListItem::new(
         //         ctx,
@@ -61,7 +75,8 @@ impl DebugScreen {
             None
         );
 
-        // let list = drawables![ListItemGroup::new(list_items)];
+        let device_list = drawables![text, ListItemGroup::new(vec![local])];
+
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
@@ -69,7 +84,7 @@ impl DebugScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text)] //, Box::new(list)
+            device_list
         );
         Ok(Self(Stack::default(), Page::new(header, content, None)))
     }

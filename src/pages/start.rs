@@ -116,19 +116,7 @@ impl StartScreen {
             "Welcome to Ramp", 
             //No icon button
             None
-        );
-
-        //icon element
-        let icon = Icon::new(
-            //app context
-            ctx, 
-            //icon
-            "pelican", 
-            //icon color
-            None,
-            //icon size
-            128.0
-        );        
+        );   
 
         let list = drawables![ListItemGroup::new(list_items)];
         //insert list item to load projects here
