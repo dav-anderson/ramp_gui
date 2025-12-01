@@ -46,6 +46,19 @@ impl WASMScreen {
             None
         );
 
+        let explainer = ExpandableText::new(
+            ctx,
+            //content
+            "Windows specific configuration options go here",
+            //Size
+            TextSize::H3,
+            //style
+            TextStyle::Primary,
+            //alignment
+            Align::Center,
+            None
+        );
+
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
@@ -53,7 +66,7 @@ impl WASMScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text)]
+            vec![Box::new(text), Box::new(explainer)]
         );
 
         let bumper = Bumper::home(

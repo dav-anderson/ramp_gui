@@ -1,8 +1,6 @@
 pub mod pages;
 pub mod ramp;
 
-use crate::pages::start::StartScreen;
-
 use pelican_ui::start;
 use pelican_ui::drawable;
 use pelican_ui::layout;
@@ -15,13 +13,13 @@ use pelican_ui::components::interface::general::{Bumper, Content, Header, Interf
 use pelican_ui::theme::Theme;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo};
 use crate::pages::settings::SettingsScreen;
-use crate::pages::debug::DebugScreen;
 use crate::pages::ios::IOSScreen;
 use crate::pages::android::AndroidScreen;
 use crate::pages::linux::LinuxScreen;
 use crate::pages::macos::MacOSScreen;
 use crate::pages::wasm::WASMScreen;
 use crate::pages::windows::WindowsScreen;
+use crate::pages::start::StartScreen;
 
 
 #[cfg(target_os = "macos")]
@@ -97,17 +95,18 @@ impl Application for RampGUI {
     // Asynchronously create the main drawable UI component
     fn interface(ctx: &mut Context) -> Interface {
         // Create the navigation bar
-        let settings = RootInfo::icon("settings", "Settings", SettingsScreen::new(ctx).ok().unwrap());
-        let ios = RootInfo::icon("app_store", "IOS", IOSScreen::new(ctx).ok().unwrap());
-        let macos = RootInfo::icon("app_store", "MacOS", MacOSScreen::new(ctx).ok().unwrap());
-        let android = RootInfo::icon("play_store", "Android", AndroidScreen::new(ctx).ok().unwrap());
-        let windows = RootInfo::icon("monitor", "Windows", WindowsScreen::new(ctx).ok().unwrap());
-        let linux = RootInfo::icon("monitor", "Linux", LinuxScreen::new(ctx).ok().unwrap());
-        let wasm = RootInfo::icon("monitor", "WASM", WASMScreen::new(ctx).ok().unwrap());
-        let debug = RootInfo::icon("home", "Run", DebugScreen::new(ctx).ok().unwrap());
+        // let settings = RootInfo::icon("settings", "Settings", SettingsScreen::new(ctx).ok().unwrap());
+        // let ios = RootInfo::icon("app_store", "IOS", IOSScreen::new(ctx).ok().unwrap());
+        // let macos = RootInfo::icon("app_store", "MacOS", MacOSScreen::new(ctx).ok().unwrap());
+        // let android = RootInfo::icon("play_store", "Android", AndroidScreen::new(ctx).ok().unwrap());
+        // let windows = RootInfo::icon("monitor", "Windows", WindowsScreen::new(ctx).ok().unwrap());
+        // let linux = RootInfo::icon("monitor", "Linux", LinuxScreen::new(ctx).ok().unwrap());
+        // let wasm = RootInfo::icon("monitor", "WASM", WASMScreen::new(ctx).ok().unwrap());
+        // let debug = RootInfo::icon("home", "Run", DebugScreen::new(ctx).ok().unwrap());
+        let start = RootInfo::icon("home", "start", StartScreen::new(ctx).ok().unwrap());
         
         // Create the main interface with navgiation bar
-        Interface::new(ctx, vec![debug, android, ios, macos, windows, linux, wasm, settings])
+        Interface::new(ctx, vec![start])
     }
 
     //provide a global theme

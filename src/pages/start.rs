@@ -18,7 +18,7 @@ use std::fs;
 use std::time::SystemTime;
 use chrono::{DateTime, Utc};
 use crate::pages::new::NewProjectScreen;
-use crate::pages::debug::DebugScreen;
+use crate::pages::project::ProjectScreen;
 use crate::ramp::session::{Session};
 
 use serde::{Serialize, Deserialize};
@@ -102,7 +102,7 @@ impl StartScreen {
                 None,
                 |ctx: &mut Context| {
                     // session.update_current_project(project);
-                    let page = Box::new(DebugScreen::new(ctx).unwrap());
+                    let page = Box::new(ProjectScreen::new(ctx).unwrap());
                     ctx.trigger_event(NavigationEvent::Push(Some(page)))
                 }
             )

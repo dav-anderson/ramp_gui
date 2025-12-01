@@ -55,13 +55,26 @@ impl MacOSScreen {
             None
         );
 
+        let explainer = ExpandableText::new(
+            ctx,
+            //content
+            "MacOS specific configuration options go here",
+            //Size
+            TextSize::H3,
+            //style
+            TextStyle::Primary,
+            //alignment
+            Align::Center,
+            None
+        );
+
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
             ctx,
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text), Box::new(bundle_input)]
+            vec![Box::new(text), Box::new(bundle_input), Box::new(explainer)]
         );
 
         let bumper = Bumper::home(

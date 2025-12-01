@@ -49,24 +49,11 @@ impl AndroidScreen {
         let explainer = ExpandableText::new(
             ctx,
             //content
-            "Ramp supports streaming install via usb tether. Please connect an Android device with developer debugging enabled.",
+            "Android specific configuration options go here.",
             //Size
             TextSize::H3,
             //style
             TextStyle::Primary,
-            //alignment
-            Align::Center,
-            None
-        );
-
-        let tether = ExpandableText::new(
-            ctx,
-            //content
-            "Device Connection Status: Not Ready",
-            //Size
-            TextSize::H4,
-            //style
-            TextStyle::Secondary,
             //alignment
             Align::Center,
             None
@@ -77,7 +64,7 @@ impl AndroidScreen {
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text), Box::new(explainer), Box::new(tether)]
+            vec![Box::new(text), Box::new(explainer)]
         );
 
         let bumper = Bumper::home(

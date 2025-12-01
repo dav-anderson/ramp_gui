@@ -7,4 +7,4 @@ pub mod android;
 pub mod windows;
 pub mod linux;
 pub mod wasm;
-pub mod debug;
+pub mod project;

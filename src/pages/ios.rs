@@ -58,7 +58,7 @@ impl IOSScreen {
         let explainer = ExpandableText::new(
             ctx,
             //content
-            "Ramp supports streaming install via usb tether. Please connect an IOS device with developer debugging enabled. You will be required to provision the device.",
+            "IOS specific configuration options go here",
             //Size
             TextSize::H3,
             //style
@@ -68,40 +68,13 @@ impl IOSScreen {
             None
         );
 
-        let tether = ExpandableText::new(
-            ctx,
-            //content
-            "Device Connection Status: Not Ready",
-            //Size
-            TextSize::H4,
-            //style
-            TextStyle::Secondary,
-            //alignment
-            Align::Center,
-            None
-        );
-
-        let provision = ExpandableText::new(
-            ctx,
-            //content
-            "Device Provision Status: Not Ready",
-            //Size
-            TextSize::H4,
-            //style
-            TextStyle::Secondary,
-            //alignment
-            Align::Center,
-            None
-        );
-
-
         // Combine icon, heading, and subtext into page content
         let content = Content::new(
             ctx,
             // Vertically center items
             Offset::Center,
             // All items must be boxed as Box<dyn Drawable>
-            vec![Box::new(text), Box::new(bundle_input), Box::new(explainer), Box::new(tether), Box::new(provision)]
+            vec![Box::new(text), Box::new(bundle_input), Box::new(explainer)]
         );
 
         let bumper = Bumper::home(
