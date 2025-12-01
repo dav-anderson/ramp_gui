@@ -24,12 +24,11 @@ impl AppPage for WindowsScreen {}
 impl WindowsScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
         //page header
-        let header = Header::home(
+        let header = Header::stack(
             //app context
             ctx,
             //header string
-            "<Project_name> Windows",
-            None
+            "<Project_name> Windows"
         );
 
         //main heading text

@@ -12,6 +12,13 @@ use pelican_ui::components::list_item::{ListItem, ListItemGroup, ListItemInfoLef
 use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use crate::pages::start::StartScreen;
 use crate::ramp::session::{Session};
+use crate::pages::settings::SettingsScreen;
+use crate::pages::ios::IOSScreen;
+use crate::pages::android::AndroidScreen;
+use crate::pages::linux::LinuxScreen;
+use crate::pages::macos::MacOSScreen;
+use crate::pages::wasm::WASMScreen;
+use crate::pages::windows::WindowsScreen;
 use crate::ramp::core::{new_project};
 
 use serde::{Serialize, Deserialize};
@@ -107,7 +114,9 @@ impl ProjectScreen {
             None,
             None,
             |ctx: &mut Context| {
-                println!("building for ios")
+                println!("building for ios");
+                let page = Box::new(IOSScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }
 
         );
@@ -119,7 +128,9 @@ impl ProjectScreen {
             None,
             None,
             |ctx: &mut Context| {
-                println!("building for MacOS")
+                println!("building for MacOS");
+                let page = Box::new(MacOSScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }
 
         );
@@ -131,7 +142,9 @@ impl ProjectScreen {
             None,
             None,
             |ctx: &mut Context| {
-                println!("building for android")
+                println!("building for android");
+                let page = Box::new(AndroidScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }
 
         );
@@ -143,7 +156,9 @@ impl ProjectScreen {
             None,
             None,
             |ctx: &mut Context| {
-                println!("building for Linux")
+                println!("building for Linux");
+                let page = Box::new(LinuxScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }
 
         );
@@ -155,7 +170,9 @@ impl ProjectScreen {
             None,
             None,
             |ctx: &mut Context| {
-                println!("building for windows")
+                println!("building for windows");
+                let page = Box::new(WindowsScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }
 
         );
@@ -167,7 +184,9 @@ impl ProjectScreen {
             None,
             None,
             |ctx: &mut Context| {
-                println!("building for wasm")
+                println!("building for wasm");
+                let page = Box::new(WASMScreen::new(ctx).unwrap());
+                ctx.trigger_event(NavigationEvent::Push(Some(page)))
             }
 
         );

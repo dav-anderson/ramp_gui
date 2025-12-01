@@ -24,12 +24,11 @@ impl AppPage for WASMScreen {}
 impl WASMScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
         //page header
-        let header = Header::home(
+        let header = Header::stack(
             //app context
             ctx,
             //header string
-            "<Project_name> WASM",
-            None
+            "<Project_name> WASM"
         );
 
         //main heading text
@@ -58,7 +57,6 @@ impl WASMScreen {
             Align::Center,
             None
         );
-
 
         // Combine icon, heading, and subtext into page content
         let content = Content::new(

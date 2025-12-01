@@ -24,12 +24,11 @@ impl AppPage for AndroidScreen {}
 impl AndroidScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
         //page header
-        let header = Header::home(
+        let header = Header::stack(
             //app context
             ctx,
             //header string
-            "<Project_name> Android",
-            None
+            "<Project_name> Android"
         );
 
         //main heading text

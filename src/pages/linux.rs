@@ -24,12 +24,11 @@ impl AppPage for LinuxScreen {}
 impl LinuxScreen {
     pub fn new(ctx: &mut Context) -> Result<Self, String> {
         //page header
-        let header = Header::home(
+        let header = Header::stack(
             //app context
             ctx,
             //header string
-            "<Project_name> Linux",
-            None
+            "<Project_name> Linux"
         );
 
         //main heading text
