@@ -12,13 +12,6 @@ use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use pelican_ui::components::interface::general::{Bumper, Content, Header, Interface, Page};
 use pelican_ui::theme::Theme;
 use pelican_ui::components::interface::navigation::{AppPage, RootInfo};
-use crate::pages::settings::SettingsScreen;
-use crate::pages::ios::IOSScreen;
-use crate::pages::android::AndroidScreen;
-use crate::pages::linux::LinuxScreen;
-use crate::pages::macos::MacOSScreen;
-use crate::pages::wasm::WASMScreen;
-use crate::pages::windows::WindowsScreen;
 use crate::pages::start::StartScreen;
 
 

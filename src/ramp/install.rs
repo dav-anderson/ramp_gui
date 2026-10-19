@@ -246,7 +246,7 @@ pub fn install_build_targets(session: &mut Session) -> io::Result<()> {
     let mac_targets: Vec<String> = vec![
         "aarch64-apple-ios".to_string(),
         "x86_64-apple-ios".to_string(),
-        "aarch64-apple-ios-sim".to_string(),
+        // "aarch64-apple-ios-sim".to_string(),
         "x86_64-apple-darwin".to_string(),
         "aarch64-apple-darwin".to_string(),
         "x86_64-pc-windows-gnu".to_string(),
@@ -258,7 +258,7 @@ pub fn install_build_targets(session: &mut Session) -> io::Result<()> {
         "i686-linux-android".to_string(),
         "x86_64-linux-android".to_string(),
         "x86_64-pc-windows-gnu".to_string(),
-        "wasm32-unknown-unknown".to_string(),
+        // "wasm32-unknown-unknown".to_string(),
     ];
 
     //get list of current installations
